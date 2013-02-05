@@ -13,8 +13,14 @@ import os
 import subprocess
 
 import numpy as np
-import pyfits
-import pywcs
+try:
+    from astropy.wcs import WCS
+except ImportError:
+    from pywcs import WCS
+try:
+    from astropy.io.fits import getheader
+except ImportError:
+    from pyfits import getheader
 import tables
 
 
@@ -571,11 +577,11 @@ class DolphotTable(object):
 
         # Compute RA and Dec from x,y coords against ref or first image
         if referenceImage is not None:
-            refHead = pyfits.getheader(referenceImage['path'])
+            refHead = getheader(referenceImage['path'])
         else:
             # use the first image as a reference instead
-            refHead = pyfits.getheader(images[0]['path'])
-        wcs = pywcs.WCS(refHead)
+            refHead = getheader(images[0]['path'])
+        wcs = WCS(refHead)
         ra, dec = wcs.all_pix2sky(dataRecArray['x'], dataRecArray['y'], 1)
         dataRecArray['ra'] = ra
         dataRecArray['dec'] = dec
