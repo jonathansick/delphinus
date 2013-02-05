@@ -109,8 +109,10 @@ class Dolphot(object):
         """
         self.params[key] = param
 
-    def run(self, outputName, clean=True):
-        """Run dolphot photometry given the parameter settings."""
+    def write_parameters(self, outputName):
+        """Write parameters to a .params file for DOLPHOT. This method is
+        automatically called by :meth:`run`.
+        """
         dolphotParams = DolphotParameters(**self.params)
         for doc in self.images:
             path = doc['path']
@@ -122,7 +124,11 @@ class Dolphot(object):
             dolphotParams.setup_image(refPath, ref=True, **refParams)
         self.paramPath = os.path.join(self.workDir, outputName + ".params")
         dolphotParams.write_parameters(self.paramPath)
+
+    def run(self, outputName, clean=True):
+        """Run dolphot photometry given the parameter settings."""
         outputPath = os.path.join(self.workDir, outputName)
+        self.write_parameters(outputName)
         command = "dolphot %s -p%s" % (outputPath, self.paramPath)
         print command
         subprocess.call(command, shell=True)
