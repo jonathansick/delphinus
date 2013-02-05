@@ -59,7 +59,7 @@ class Dolphot(object):
             os.makedirs(workDir)
         self.workDir = workDir
 
-    def add_image(self, imagePath, key=None, **params):
+    def add_image(self, imagePath, key=None, band=None, **params):
         """Add an image to the set to be photometered.
         
         Parameters
@@ -72,14 +72,19 @@ class Dolphot(object):
             key is used in the HDF5 photometry table to show the order
             of images. Set to the file name, without directory and extension
             if left as None.
+        band : str
+            Band-pass of this image. Can be used to help create cursory
+            CMDs. If not set, the bandpass of each image is labeled `'None'`.
         **params : kwargs
             Parameters to be passed for this image. See parameter listing
             of :meth:`DolphotParameters.setup_image`.
         """
         if key is None:
             key = os.path.splitext(os.path.basename(imagePath))[0]
+        if band is None:
+            band = 'None'
         self.images.append({"path": imagePath, "image_key": key,
-            "params": params})
+            "params": params, "band": band})
     
     def add_reference(self, imagePath, **params):
         """Add an image to the set to be photometered.

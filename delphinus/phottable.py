@@ -102,6 +102,7 @@ class DolphotTable(object):
         # Set meta data for the photometry table
         photTable.attrs.image_paths = [im['path'] for im in images]
         photTable.attrs.image_keys = [im['image_key'] for im in images]
+        photTable.attrs.image_bands = [im['band'] for im in images]
         # Save and close
         photTable.flush()
         h5.close()
@@ -116,5 +117,13 @@ class DolphotTable(object):
 
     @property
     def image_keys(self):
-        """List of image paths in photometry, ordered as in catalog."""
+        """List of image keys in photometry, ordered as in catalog.
+        
+        Image keys are strings used to represent an image in your pipeline.
+        """
         return self.photTable.attrs.image_keys
+
+    @property
+    def image_bands(self):
+        """List of image bandpasses, ordered with :meth:`self.image_paths`."""
+        return self.photTable.attrs.image_bands
