@@ -364,7 +364,7 @@ class DolphotParameters(object):
     def setup_image(self, path, psfA=(3, 0, 0, 0, 0, 0),
             psfB=(3, 0, 0, 0, 0, 0), psfC=(0, 0, 0, 0, 0, 0),
             shift=(0, 0), xform=(1, 0, 0), aprad=20, apsky=(30, 50),
-            raper=2.5, rsky0=4.0, rsky1=10.0, rchi=None, rpsf=15,
+            RAper=2.5, RSky0=4.0, RSky1=10.0, RChi=None, RPSF=15,
             ref=False):
         """Configure the fitting parameters for a single image. This may
         also be the reference image if `ref=True` is set.
@@ -431,9 +431,9 @@ class DolphotParameters(object):
             path = os.path.splitext(path)[0]
         imageDoc = {"file": path, "psfa": psfA, "psfb": psfB,
                 "psfc": psfC, "shift": shift, "xform": xform,
-                "aprad": aprad, "apsky": apsky, "RSky0": rsky0,
-                "Rsky1": rsky1, "RAper": raper, "RChi": rchi,
-                "RPSF": rpsf, }
+                "aprad": aprad, "apsky": apsky, "RSky0": RSky0,
+                "Rsky1": RSky1, "RAper": RAper, "RChi": RChi,
+                "RPSF": RPSF, }
         if ref == True:
             self.refImageParams = imageDoc
         else:
