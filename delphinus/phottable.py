@@ -17,6 +17,8 @@ except ImportError:
     from pyfits import getheader
 import tables
 
+import lfdiagnostics
+
 
 class DolphotTable(object):
     """Represents the output from Dolphot in an HDF5 table."""
@@ -127,3 +129,16 @@ class DolphotTable(object):
     def image_bands(self):
         """List of image bandpasses, ordered with :meth:`self.image_paths`."""
         return self.photTable.attrs.image_bands
+
+    def plot_luminosity_function_diagnostics(self, plotPathRoot,
+            magLim=None, fmt="pdf"):
+        """docstring for plot_luminosity_function_diagnostics"""
+        plotDir = os.path.dirname(plotPathRoot)
+        if plotDir is not "" and not os.path.exists(plotDir):
+            os.makedirs(plotDir)
+
+        for i, (imageKey, band) in enumerate(zip(self.image_keys,
+                self.image_bands)):
+            plotPath = "%s_%s_%s.%s" % (plotPathRoot, imageKey, band, fmt)
+            lfdiagnostics.make_diagnostic_plot(self, i, imageKey,
+                    band, fmt, plotPath, magLim)
