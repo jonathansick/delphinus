@@ -105,7 +105,7 @@ class Dolphot(object):
         """
         self.params[key] = param
 
-    def write_parameters(self, outputName):
+    def write_parameters(self, outputName, fullPath=False):
         """Write parameters to a .params file for DOLPHOT. This method is
         automatically called by :meth:`run`.
         """
@@ -118,7 +118,10 @@ class Dolphot(object):
             refPath = self.referenceImage['path']
             refParams = self.referenceImage['params']
             dolphotParams.setup_image(refPath, ref=True, **refParams)
-        self.paramPath = os.path.join(self.workDir, outputName + ".params")
+        if not fullPath:
+            self.paramPath = os.path.join(self.workDir, outputName + ".params")
+        else:
+            self.paramPath = outputName
         dolphotParams.write_parameters(self.paramPath)
 
     def run(self, outputName, clean=True):
@@ -364,7 +367,7 @@ class DolphotParameters(object):
     def setup_image(self, path, psfA=(3, 0, 0, 0, 0, 0),
             psfB=(3, 0, 0, 0, 0, 0), psfC=(0, 0, 0, 0, 0, 0),
             shift=(0, 0), xform=(1, 0, 0), aprad=20, apsky=(30, 50),
-            RAper=2.5, RSky0=4.0, RSky1=10.0, RChi=None, RPSF=15,
+            RAper=2.5, RSky=(4.0, 10.0), RChi=None, RPSF=15,
             ref=False):
         """Configure the fitting parameters for a single image. This may
         also be the reference image if `ref=True` is set.
@@ -406,12 +409,11 @@ class DolphotParameters(object):
             performed. For FitSky=0 or 1, this should include most of the
             light of the star. For FitSky=2, 3, or 4 options, this should also
             include significant “sky” area outside the star.
-        rsky0 : real
-            Inner radius for computing sky values, if FitSky=1 is being used.
-            This should be outside the bulk of the light from the star.
-        rsky1 : real
-            Outer radius for computing sky values, if FitSky=1 is being used.
-            This should be sufficiently large to compute an accurate sky.
+        rsky : tuple
+            Inner, outer radius for computing sky values, if FitSky=1 is being
+            used. This should be outside the bulk of the light from the star.
+            Outer radius should be sufficiently large to compute an accurate
+            sky.
         rpsf : int
             Size of the PSF used for star subtraction. The rule of thumb is to
             make sure this is sufficiently large that significant unsubtracted
@@ -431,8 +433,8 @@ class DolphotParameters(object):
             path = os.path.splitext(path)[0]
         imageDoc = {"file": path, "psfa": psfA, "psfb": psfB,
                 "psfc": psfC, "shift": shift, "xform": xform,
-                "aprad": aprad, "apsky": apsky, "RSky0": RSky0,
-                "Rsky1": RSky1, "RAper": RAper, "RChi": RChi,
+                "aprad": aprad, "apsky": apsky,
+                "Rsky": RSky, "RAper": RAper, "RChi": RChi,
                 "RPSF": RPSF, }
         if ref == True:
             self.refImageParams = imageDoc
@@ -441,8 +443,8 @@ class DolphotParameters(object):
 
     def write_parameters(self, path):
         """Write the parameter file to `path`."""
-        pathDir = os.path.dirname(path)
-        if os.path.exists(pathDir) is False: os.makedirs(path)
+        # pathDir = os.path.dirname(path)
+        # if os.path.exists(pathDir) is False: os.makedirs(path)
         if os.path.exists(path) is True: os.remove(path)
         paramLines = []
         paramLines.append("Nimg = %i" % len(self.imageParams))
@@ -476,8 +478,7 @@ class DolphotParameters(object):
                 "xform": "%.2f %.2f %.2f",
                 "aprad": "%.2f",
                 "apsky": "%.2f %.2f",
-                "RSky0": "%.2f",
-                "Rsky1": "%.2f",
+                "RSky": "%.2f %.2f",
                 "RAper": "%.2f",
                 "RChi": "%.2f",
                 "RPSF": "%i"}
