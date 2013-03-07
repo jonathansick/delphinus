@@ -30,7 +30,7 @@ class DolphotTable(object):
     
     @classmethod
     def make(cls, tablePath, images, referenceImage, photPath, psfsPath,
-            apcorPath):
+            apcorPath, execTime=None):
         """Initialize a DolphotTable using data from the Dolphot class."""
         n = len(images)
         # Column definitions for the HDF5 table
@@ -105,6 +105,8 @@ class DolphotTable(object):
         photTable.attrs.image_paths = [im['path'] for im in images]
         photTable.attrs.image_keys = [im['image_key'] for im in images]
         photTable.attrs.image_bands = [im['band'] for im in images]
+        if execTime is not None:
+            photTable.attrs.exec_time = execTime
         # Save and close
         photTable.flush()
         h5.close()

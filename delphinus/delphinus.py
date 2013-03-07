@@ -10,6 +10,7 @@ documentation where appropriate (e.g. for defining parameters).
 """
 
 import os
+import time
 import subprocess
 
 from phottable import DolphotTable
@@ -58,6 +59,7 @@ class Dolphot(object):
         if os.path.exists(workDir) is False:
             os.makedirs(workDir)
         self.workDir = workDir
+        self.execTime = None
 
     def add_image(self, imagePath, key=None, band=None, **params):
         """Add an image to the set to be photometered.
@@ -130,7 +132,9 @@ class Dolphot(object):
         self.write_parameters(outputName)
         command = "dolphot %s -p%s" % (outputPath, self.paramPath)
         print command
-        subprocess.call(command, shell=True)
+        with Timer() as t:
+            subprocess.call(command, shell=True)
+        self.execTime = t.interval
         # Define paths to dolphot outputs
         self._define_output_paths(outputName)
 
@@ -149,7 +153,7 @@ class Dolphot(object):
             tablePath = os.path.join(self.workDir, self.outputName + ".h5")
         dolphotTable = DolphotTable.make(tablePath, self.images,
                 self.referenceImage, self.photPath, self.psfsPath,
-                self.apcorPath)
+                self.apcorPath, execTime=self.execTime)
         self.tablePath = tablePath
         return dolphotTable
 
@@ -516,6 +520,20 @@ class DolphotParameters(object):
             print key, p, formatters[key]
             lines.append(key + " = " + formatters[key] % p)
         return lines
+
+
+class Timer:
+    """Timer function, via http://preshing.com/
+       20110924/timing-your-code-using-pythons-with-statement
+    """
+    def __enter__(self):
+        self.start = time.clock()
+        return self
+
+    def __exit__(self, *args):
+        self.end = time.clock()
+        self.interval = self.end - self.start
+
 
 """
 1. Extension (zero for base image)
