@@ -438,7 +438,7 @@ class DolphotParameters(object):
         imageDoc = {"file": path, "psfa": psfA, "psfb": psfB,
                 "psfc": psfC, "shift": shift, "xform": xform,
                 "aprad": aprad, "apsky": apsky,
-                "Rsky": RSky, "RAper": RAper, "RChi": RChi,
+                "RSky": RSky, "RAper": RAper, "RChi": RChi,
                 "RPSF": RPSF, }
         if ref == True:
             self.refImageParams = imageDoc
@@ -491,7 +491,6 @@ class DolphotParameters(object):
             if p is None: continue
             if n == 0 and key in ['shift', 'xform']: continue
             if key not in formatters: continue  # don't know this key
-            print key, p, formatters[key]
             lines.append(prefix + key + " = " + formatters[key] % p)
         return lines
 
