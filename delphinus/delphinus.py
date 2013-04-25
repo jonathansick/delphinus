@@ -491,6 +491,8 @@ class DolphotParameters(object):
             if p is None: continue
             if n == 0 and key in ['shift', 'xform']: continue
             if key not in formatters: continue  # don't know this key
+            if type(p) is list:
+                p = tuple(p)
             lines.append(prefix + key + " = " + formatters[key] % p)
         return lines
 
