@@ -60,7 +60,8 @@ class StarList(object):
             exptimes = [exptimes] * nImages
         counts = []
         for mag, zp, exptime in zip(mags, zps, exptimes):
-            counts.append(10. ** (-0.4 * (mag + zp)) * exptime)
+            c = 10. ** (-0.4 * (mag - zp)) * exptime
+            counts.append(c)
         self.add_stars(x, y, counts, ext=ext, chip=chip)
     
     def write(self, path):
