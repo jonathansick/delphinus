@@ -47,6 +47,21 @@ class StarList(object):
             stars[:, i + 4] = c
 
         self._groups.append(stars)
+
+    def add_stars_mags(self, x, y, zps=25, exptimes=1., ext=0, chip=1, *mags):
+        """Identical to :func:`add_stars` except that star brightnesses can
+        be given as magnitudes. Zeropoints and exposure times will translate
+        those magnitudes into counts on each image.
+        """
+        nImages = len(mags)
+        if not isinstance(zps, (tuple, list)):
+            zps = [zps] * nImages
+        if not isinstance(exptimes, (tuple, list)):
+            exptimes = [exptimes] * nImages
+        counts = []
+        for mag, zp, exptime in zip(mags, zps, exptimes):
+            counts.append(10. ** (-0.4 * (mag + zp)) * exptime)
+        self.add_stars(x, y, *counts, ext=ext, chip=chip)
     
     def write(self, path):
         """Write articial star list to `path`."""
