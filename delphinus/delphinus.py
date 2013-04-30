@@ -131,7 +131,6 @@ class Dolphot(object):
         outputPath = os.path.join(self.workDir, outputName)
         self.write_parameters(outputName)
         command = "dolphot %s -p%s" % (outputPath, self.paramPath)
-        print command
         with Timer() as t:
             subprocess.call(command, shell=True)
         self.execTime = t.interval
@@ -518,7 +517,6 @@ class DolphotParameters(object):
         for key, p in self.params.iteritems():
             if p is None: continue
             if key not in formatters: continue  # don't know this key
-            print key, p, formatters[key]
             lines.append(key + " = " + formatters[key] % p)
         return lines
 
