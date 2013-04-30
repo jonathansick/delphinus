@@ -346,7 +346,7 @@ class DolphotParameters(object):
             EPSF=1,
             PSFsol=0, PSFres=1, psfstars=None, psfoff=0.0,
             ApCor=0, SubPixel=1,
-            FakeStars=None, FakeMatch=3., FakeStarPSF=0,
+            FakeStars=None, FakeMatch=3., FakeStarPSF=0, FakePSF=1.5,
             RandomFake=1,
             xytfile=None, xytpsf=None):
         self.refImageParams = None
@@ -365,7 +365,7 @@ class DolphotParameters(object):
             "PSFres": PSFres, "psfstars": psfstars, "psfoff": psfoff,
             "ApCor": ApCor, "SubPixel": SubPixel, "FakeStars": FakeStars,
             "FakeMatch": FakeMatch, "FakeStarPSF": FakeStarPSF,
-            "RandomFake": RandomFake,
+            "FakePSF": FakePSF, "RandomFake": RandomFake,
             "xytfile": xytfile, "xytpsf": xytpsf}
 
     def setup_image(self, path, psfA=(3, 0, 0, 0, 0, 0),
@@ -512,7 +512,7 @@ class DolphotParameters(object):
             "Force1": "%i", "EPSF": "%i", "PSFsol": "%i", "PSFres": "%i",
             "psfstars": "%s", "psfoff": "%.1f", "ApCor": "%i",
             "SubPixel": "%i", "FakeStars": "%s", "FakeMatch": "%.2f",
-            "FakeStarPSF": "%i", "RandomFake": "%i",
+            "FakeStarPSF": "%i", "FakePSF": "%.2f", "RandomFake": "%i",
             "xytfile": "%s", "xytpsf": "%s"}
         lines = []
         for key, p in self.params.iteritems():
