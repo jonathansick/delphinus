@@ -143,6 +143,7 @@ class Dolphot(object):
         self.columnsPath = os.path.join(self.workDir, outputName + ".columns")
         self.infoPath = os.path.join(self.workDir, outputName + ".info")
         self.psfsPath = os.path.join(self.workDir, outputName + ".psfs")
+        self.fakePath = os.path.join(self.workDir, outputName + ".fake")
         self.photPath = os.path.join(self.workDir, outputName)
         self.outputName = outputName
 
