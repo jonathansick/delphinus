@@ -231,6 +231,17 @@ class WIRCamFakeTable(object):
 
         return dataRecArray
 
+    def mag_errors(self):
+        """Prototype for computing output-input magnitudes for two-image AST.
+        """
+        results = []
+        for n in xrange(2):
+            fakeMag = self._data['fake_mag_%i' % (n+1, )]
+            obsMag = self._data['mag'][:, n]
+            results.append((obsMag, obsMag - fakeMag))
+        return results
+
 if __name__ == '__main__':
     fakePath = "/Users/jsick/Dropbox/_dolphot/517eef6ce8f07284365c6156.fake"
     fakeTable = WIRCamFakeTable(fakePath)
+    print fakeTable.mag_errors()
