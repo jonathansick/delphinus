@@ -234,14 +234,27 @@ class WIRCamFakeTable(object):
     def mag_errors(self):
         """Prototype for computing output-input magnitudes for two-image AST.
         """
-        results = []
+        imageResults = []
         for n in xrange(2):
             fakeMag = self._data['fake_mag_%i' % (n+1, )]
             obsMag = self._data['mag'][:, n]
-            results.append((obsMag, obsMag - fakeMag))
-        return results
+            imageResults.append((obsMag, obsMag - fakeMag))
+        return imageResults
+
+    def position_errors(self):
+        """Prototype for computing position errors for two-image AST as the
+        Euclidean distance between input and output (x,y) coordinates.
+        """
+        inputX = self._data['fake_x']
+        inputY = self._data['fake_y']
+        obsX = self._data['x']
+        obsY = self._data['y']
+        dx = np.hypot(inputX - obsX, inputY - obsY)
+        return dx
+
 
 if __name__ == '__main__':
     fakePath = "/Users/jsick/Dropbox/_dolphot/517eef6ce8f07284365c6156.fake"
     fakeTable = WIRCamFakeTable(fakePath)
     print fakeTable.mag_errors()
+    print fakeTable.position_errors()
