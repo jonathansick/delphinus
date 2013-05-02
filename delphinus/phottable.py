@@ -253,9 +253,29 @@ class WIRCamFakeTable(object):
         dx = np.hypot(inputX - obsX, inputY - obsY)
         return fakeMagK, dx
 
+    def completeness(self, dmag):
+        """Prototype for reporting completeness in each image, as a function
+        of input magnitude using DOLPHOT's metric for star recovery success.
+        """
+        imageResults = []
+        for n in xrange(2):
+            fakeMag = self._data['fake_mag_%i' % (n + 1, )]
+            obsMag = self._data['mag'][:, n]
+            # Dolphot gives unrecovered stars a magnitude of 99. This should
+            # safely distinguish those stars.
+            recovered = np.array(obsMag < 50., dtype=np.float)
+            bins = np.arange(fakeMag.min(), fakeMag.max(), dmag)
+            inds = np.digitize(fakeMag, bins)
+            rec = np.bincount(inds, weights=recovered, minlength=None)
+            tot = np.bincount(inds, weights=None, minlength=None)
+            comp = rec / tot
+            imageResults.append((bins, comp))
+        return imageResults
+
 
 if __name__ == '__main__':
     fakePath = "/Users/jsick/Dropbox/_dolphot/517eef6ce8f07284365c6156.fake"
     fakeTable = WIRCamFakeTable(fakePath)
     print fakeTable.mag_errors()
     print fakeTable.position_errors()
+    print fakeTable.completeness()
