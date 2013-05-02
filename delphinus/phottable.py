@@ -245,12 +245,13 @@ class WIRCamFakeTable(object):
         """Prototype for computing position errors for two-image AST as the
         Euclidean distance between input and output (x,y) coordinates.
         """
+        fakeMagK = self._data['fake_mag_2']
         inputX = self._data['fake_x']
         inputY = self._data['fake_y']
         obsX = self._data['x']
         obsY = self._data['y']
         dx = np.hypot(inputX - obsX, inputY - obsY)
-        return dx
+        return fakeMagK, dx
 
 
 if __name__ == '__main__':
