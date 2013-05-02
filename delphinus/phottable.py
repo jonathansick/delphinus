@@ -236,9 +236,9 @@ class WIRCamFakeTable(object):
         """
         imageResults = []
         for n in xrange(2):
-            fakeMag = self._data['fake_mag_%i' % (n+1, )]
+            fakeMag = self._data['fake_mag_%i' % (n + 1, )]
             obsMag = self._data['mag'][:, n]
-            imageResults.append((obsMag, obsMag - fakeMag))
+            imageResults.append((fakeMag, obsMag - fakeMag))
         return imageResults
 
     def position_errors(self):
