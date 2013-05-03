@@ -287,6 +287,38 @@ class WIRCamFakeTable(object):
             imageResults.append((bins, comp[1:]))
         return imageResults
 
+    def metrics(self, magRange, magErrLim=None, dxLim=None):
+        """Makes scalar metrics of artificial stars in an image.
+        
+        For each image, results a tuple (RMS mag error, completeness fraction).
+        """
+        imageResults = []
+        if dxLim is not None:
+            k, dx = self.position_errors()
+        for n in xrange(2):
+            fakeMag = self._data['fake_mag_%i' % (n + 1, )]
+            obsMag = self._data['mag'][:, n]
+            err = np.abs(fakeMag - obsMag)
+            # Dolphot gives unrecovered stars a magnitude of 99. This should
+            # safely distinguish those stars.
+            # recovered = np.array(obsMag < 50., dtype=np.float)
+            recovered = obsMag < 50.
+            if magErrLim is not None:
+                recovered = recovered & (err < magErrLim)
+            if dxLim is not None:
+                recovered = recovered & (dx < dxLim)
+            recovered = np.array(recovered, dtype=np.float)
+            # Find stars in magnitude range
+            minMask = fakeMag > min(magRange)
+            maxMask = fakeMag < max(magRange)
+            found = obsMag < 50.
+            inds = np.where(minMask & maxMask)[0]
+            indsMeasured = np.where(minMask & maxMask & found)[0]
+            comp = float(np.sum(recovered[inds]) / float(len(inds)))
+            rms = float(np.std(err[indsMeasured]))
+            imageResults.append((rms, comp))
+        return imageResults
+
 
 if __name__ == '__main__':
     fakePath = "/Users/jsick/Dropbox/_dolphot/517eef6ce8f07284365c6156.fake"
@@ -299,3 +331,5 @@ if __name__ == '__main__':
     print len(fakeTable._data)
     concatTable = fakeTable + fakeTable2
     print len(concatTable._data)
+    print fakeTable.metrics([17., 18.], magErrLim=0.2)
+    print fakeTable.metrics([19., 19.5], magErrLim=0.2)
