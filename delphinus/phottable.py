@@ -265,12 +265,14 @@ class WIRCamFakeTable(object):
             obsMag = self._data['mag'][:, n]
             # Dolphot gives unrecovered stars a magnitude of 99. This should
             # safely distinguish those stars.
-            recovered = np.array(obsMag < 50., dtype=np.float)
+            # recovered = np.array(obsMag < 50., dtype=np.float)
+            recovered = obsMag < 50.
             if magErrLim is not None:
                 err = np.abs(fakeMag - obsMag)
                 recovered = recovered & (err < magErrLim)
             if dxLim is not None:
                 recovered = recovered & (dx < dxLim)
+            recovered = np.array(recovered, dtype=np.float)
             bins = np.arange(fakeMag.min(), fakeMag.max(), dmag)
             inds = np.digitize(fakeMag, bins)
             rec = np.bincount(inds, weights=recovered, minlength=None)
