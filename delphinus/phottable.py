@@ -158,6 +158,11 @@ class WIRCamFakeTable(object):
         self.path = fakePath
         self._data = self._read(refImagePath)
 
+    def __add__(self, other):
+        """Return a concatenated WIRCamFakeTable."""
+        self._data = np.concatenate((self._data, other._data))
+        return self
+
     def _read(self, refImagePath=None):
         """Read .fake file."""
         n = 2  # two images in WIRCam testing
@@ -285,7 +290,12 @@ class WIRCamFakeTable(object):
 
 if __name__ == '__main__':
     fakePath = "/Users/jsick/Dropbox/_dolphot/517eef6ce8f07284365c6156.fake"
+    fakePath2 = "/Users/jsick/Dropbox/_dolphot/517eef6ce8f07284365c6156.fake"
     fakeTable = WIRCamFakeTable(fakePath)
+    fakeTable2 = WIRCamFakeTable(fakePath2)
     print fakeTable.mag_errors()
     print fakeTable.position_errors()
     print fakeTable.completeness()
+    print len(fakeTable._data)
+    concatTable = fakeTable + fakeTable2
+    print len(concatTable._data)
