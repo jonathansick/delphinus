@@ -253,23 +253,31 @@ class WIRCamFakeTable(object):
         dx = np.hypot(inputX - obsX, inputY - obsY)
         return fakeMagK, dx
 
-    def completeness(self, dmag):
+    def completeness(self, dmag=0.2, magErrLim=None, dxLim=None):
         """Prototype for reporting completeness in each image, as a function
         of input magnitude using DOLPHOT's metric for star recovery success.
         """
         imageResults = []
+        if dxLim is not None:
+            k, dx = self.position_errors()
         for n in xrange(2):
             fakeMag = self._data['fake_mag_%i' % (n + 1, )]
             obsMag = self._data['mag'][:, n]
             # Dolphot gives unrecovered stars a magnitude of 99. This should
             # safely distinguish those stars.
             recovered = np.array(obsMag < 50., dtype=np.float)
+            if magErrLim is not None:
+                err = np.abs(fakeMag - obsMag)
+                recovered = recovered & (err < magErrLim)
+            if dxLim is not None:
+                recovered = recovered & (dx < dxLim)
             bins = np.arange(fakeMag.min(), fakeMag.max(), dmag)
             inds = np.digitize(fakeMag, bins)
             rec = np.bincount(inds, weights=recovered, minlength=None)
             tot = np.bincount(inds, weights=None, minlength=None)
             comp = rec / tot
-            imageResults.append((bins, comp))
+            # FIXME need to resolve issue with histogram edges
+            imageResults.append((bins, comp[1:]))
         return imageResults
 
 
