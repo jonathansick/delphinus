@@ -135,7 +135,8 @@ class Dolphot(object):
             subprocess.call(command, shell=True)
         self.execTime = t.interval
         # Define paths to dolphot outputs
-        self._define_output_paths(outputName)
+        self.outputName = outputName
+        self._define_output_paths(self.outputName)
 
     def _define_output_paths(self, outputName):
         """Define paths to the dolphot outputs"""
@@ -146,6 +147,18 @@ class Dolphot(object):
         self.fakePath = os.path.join(self.workDir, outputName + ".fake")
         self.photPath = os.path.join(self.workDir, outputName)
         self.outputName = outputName
+
+    def label_fake_output(self, label):
+        """Renames artificial star test output (useful it running multiple
+        fake star lists on the same photometry)."""
+        newPath = os.path.join(self.workDir,
+                "%s_%s.fake" % (self.outputName, label))
+        if newPath == self.fakePath:
+            return
+        if os.path.exists(newPath):
+            os.remove(newPath)
+        os.move(self.fakePath, newPath)
+        self.fakePath = newPath
 
     def compile_hdf5(self, tablePath=None):
         """Make an HDF5 file of the photometric output."""
