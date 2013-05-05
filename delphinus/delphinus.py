@@ -10,6 +10,7 @@ documentation where appropriate (e.g. for defining parameters).
 """
 
 import os
+import shutil
 import time
 import subprocess
 
@@ -157,7 +158,8 @@ class Dolphot(object):
             return
         if os.path.exists(newPath):
             os.remove(newPath)
-        os.rename(self.fakePath, newPath)
+        print self.fakePath, newPath
+        shutil.move(self.fakePath, newPath)
         self.fakePath = newPath
 
     def compile_hdf5(self, tablePath=None):
