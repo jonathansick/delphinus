@@ -157,7 +157,7 @@ class Dolphot(object):
             return
         if os.path.exists(newPath):
             os.remove(newPath)
-        os.move(self.fakePath, newPath)
+        os.rename(self.fakePath, newPath)
         self.fakePath = newPath
 
     def compile_hdf5(self, tablePath=None):
