@@ -7,6 +7,7 @@ output into HDF5 files and providing nice hooks into those HDF5 tables.
 
 import os
 import numpy as np
+import numpy.lib.recfunctions as recf
 try:
     from astropy.wcs import WCS
 except ImportError:
@@ -18,6 +19,249 @@ except ImportError:
 import tables
 
 import lfdiagnostics
+
+
+class BasePhotReader(object):
+    """Base class for reading Dolphot photometry output files."""
+    N_IMAGE_COLS = 16
+    N_GLOBAL_COLS = 13
+    GLOBAL_COL_OFFSET = 0
+
+    def __init__(self, filepath, nImages, refImagePath=None):
+        super(BasePhotReader, self).__init__()
+        self.filepath = filepath
+        self.nImages = nImages
+        self.referenceImagePath = refImagePath
+        self._read()
+
+    def extract_additional_columns(self, data, nImages, nStars):
+        """User hook for extracting additional columns from the photometry
+        output file.
+        """
+        pass
+    
+    def _read(self):
+        """Pipeline for reading DOLPHOT photometry output."""
+        data = np.loadtxt(self.filepath)
+        print "data shape", data.shape
+        nStars = data.shape[0]
+        self._extract_global_cols(data, self.GLOBAL_COL_OFFSET, nStars)
+        self._extract_image_phot_cols(data,
+                self.GLOBAL_COL_OFFSET + self.N_GLOBAL_COLS,
+                self.nImages, nStars)
+        self.extract_additional_columns(data, self.nImages, nStars)  # hook
+        self.combine_structured_array()
+
+    def _extract_image_phot_cols(self, data, offset, nImages, nStars):
+        """Extract output for image-specific photometry columns."""
+        dt = [('counts', np.float, self.nImages),
+                ('sky', np.float, self.nImages),
+                ('norm_count_rate', np.float, self.nImages),
+                ('norm_count_rate_err', np.float, self.nImages),
+                ('mag', np.float, self.nImages),
+                ('chi', np.float, self.nImages),
+                ('sn', np.float, self.nImages),
+                ('sharp', np.float, self.nImages),
+                ('round', np.float, self.nImages),
+                ('crowding', np.float, self.nImages),
+                ('fwhm', np.float, self.nImages),
+                ('ecc', np.float, self.nImages),
+                ('psf_a', np.float, self.nImages),
+                ('psf_b', np.float, self.nImages),
+                ('psf_c', np.float, self.nImages),
+                ('quality', np.float, self.nImages)]
+        self._idata = np.empty(nStars, dtype=np.dtype(dt))
+        for i in range(self.nImages):
+            for j in range(self.N_IMAGE_COLS):
+                k = offset + i * self.N_IMAGE_COLS + j
+                colname = dt[j][0]
+                self._idata[colname][:, i] = data[:, k]
+
+    def _extract_global_cols(self, data, offset, nStars):
+        """Extract output for global image columns."""
+        dt = [('ext', np.int),
+                ('chip', np.int),
+                ('x', np.int),
+                ('y', np.int),
+                ('ra', np.float),
+                ('dec', np.float),
+                ('ref_chi', np.float),
+                ('ref_sn', np.float),
+                ('ref_sharp', np.float),
+                ('ref_round', np.float),
+                ('major_ax', np.int),
+                ('ref_crowding', np.float),
+                ('type', np.int)]
+        self._gdata = np.empty(nStars, dtype=np.dtype(dt))
+        for i in range(self.N_GLOBAL_COLS):
+            j = i + offset
+            colname = dt[i][0]
+            self._gdata[colname] = data[:, j]
+
+    def _fill_radec(self):
+        """Compute RA/Dec columns, if a reference image is specified."""
+        if self.referenceImagePath is not None:
+            refHead = getheader(self.referenceImagePath)
+            wcs = WCS(refHead)
+            ra, dec = wcs.all_pix2sky(self._gdata['x'], self._gdata['y'], 1)
+            self._gdata['ra'] = ra
+            self._gdata['dec'] = dec
+        else:
+            self._gdata['ra'][:] = np.nan
+            self._gdata['dec'][:] = np.nan
+
+    def combine_structured_array(self):
+        """docstring for combine_structured_array"""
+        arrays = [self._gdata, self._idata]
+        self.data = recf.merge_arrays(arrays, flatten=True, usemask=False)
+
+
+class FakeReader(BasePhotReader):
+    """Read Dolphot's .fake artificial star output."""
+    N_FAKE_GLOBAL_COLS = 4
+    N_FAKE_IMAGE_COLS = 2
+
+    def __init__(self, filepath, nImages, refImagePath=None):
+        super(FakeReader, self).__init__(filepath, nImages,
+                refImagePath=refImagePath)
+        self.GLOBAL_COL_OFFSET = self.N_FAKE_GLOBAL_COLS \
+                + self.nImages * self.N_FAKE_IMAGE_COLS
+
+    def __add__(self, other):
+        """Return a concatenated FakeReader (concatenates data)."""
+        self.data = np.concatenate((self.data, other.data))
+        return self
+    
+    def extract_additional_columns(self, data, nImages, nStars):
+        """Reads additional columns for .fake output."""
+        self._extract_fake_global_cols(data, nStars)
+        self._extract_fake_phot_cols(data, nImages, nStars)
+
+    def _extract_fake_global_cols(self, data, nStars):
+        """Extract global columns at beginning of .fake files."""
+        dt = [('fake_ext', np.int),
+                ('fake_chip', np.int),
+                ('fake_x', np.float),
+                ('fake_y', np.float),
+                ('fake_ra', np.float),
+                ('fake_dec', np.float)]
+        self._fgdata = np.empty(nStars, dtype=np.dtype(dt))
+        for i in range(self.N_FAKE_GLOBAL_COLS):
+            colname = dt[i][0]
+            self._fgdata[colname] = data[:, i]
+        self._fake_fill_radec()
+
+    def _extract_fake_phot_cols(self, data, nImages, nStars):
+        """Extract input photometry columns at beginning of .fake files
+        for each image.
+        """
+        dt = [('fake_count', np.float, nImages),
+                ('fake_mag', np.float, nImages)]
+        self._fidata = np.empty(nStars, dtype=np.dtype(dt))
+        for i in range(self.nImages):
+            for j in range(self.N_FAKE_IMAGE_COLS):
+                k = self.N_FAKE_GLOBAL_COLS + i * self.N_IMAGE_COLS + j
+                colname = dt[j][0]
+                self._fidata[colname][:, i] = data[:, k]
+
+    def _fake_fill_radec(self):
+        """Compute RA/Dec columns, if a reference image is specified."""
+        # TODO refactor this code against _fill_radec()
+        if self.referenceImagePath is not None:
+            refHead = getheader(self.referenceImagePath)
+            wcs = WCS(refHead)
+            ra, dec = wcs.all_pix2sky(self._gdata['x'], self._gdata['y'], 1)
+            self._fgdata['fake_ra'] = ra
+            self._fgdata['fake_dec'] = dec
+        else:
+            self._fgdata['fake_ra'][:] = np.nan
+            self._fgdata['fake_dec'][:] = np.nan
+
+    def combine_structured_array(self):
+        """docstring for combine_structured_array"""
+        arrays = [self._fgdata, self._fidata, self._gdata, self._idata]
+        self.data = recf.merge_arrays(arrays, flatten=True, usemask=False)
+
+    def mag_errors(self):
+        """Compute output-input magnitude difference for AST.
+        """
+        imageResults = []
+        for n in xrange(self.nImages):
+            fakeMag = self.data['fake_mag'][:, n]
+            obsMag = self.data['mag'][:, n]
+            imageResults.append((fakeMag, obsMag - fakeMag))
+        return imageResults
+
+    def position_errors(self, magIndex=0):
+        """Prototype for computing position errors for AST as the
+        Euclidean distance between input and output (x,y) coordinates.
+        """
+        fakeMag = self.data['fake_mag'][:, magIndex]
+        inputX = self.data['fake_x']
+        inputY = self.data['fake_y']
+        obsX = self.data['x']
+        obsY = self.data['y']
+        dx = np.hypot(inputX - obsX, inputY - obsY)
+        return fakeMag, dx
+
+    def completeness(self, dmag=0.2, magErrLim=None, dxLim=None):
+        """Prototype for reporting completeness in each image, as a function
+        of input magnitude using DOLPHOT's metric for star recovery success.
+        """
+        imageResults = []
+        if dxLim is not None:
+            k, dx = self.position_errors()
+        for n in xrange(self.nImages):
+            fakeMag = self.data['fake_mag'][:, n]
+            obsMag = self.data['mag'][:, n]
+            # Dolphot gives unrecovered stars a magnitude of 99. This should
+            # safely distinguish those stars.
+            recovered = obsMag < 50.
+            if magErrLim is not None:
+                err = np.abs(fakeMag - obsMag)
+                recovered = recovered & (err < magErrLim)
+            if dxLim is not None:
+                recovered = recovered & (dx < dxLim)
+            recovered = np.array(recovered, dtype=np.float)
+            bins = np.arange(fakeMag.min(), fakeMag.max(), dmag)
+            inds = np.digitize(fakeMag, bins)
+            rec = np.bincount(inds, weights=recovered, minlength=None)
+            tot = np.bincount(inds, weights=None, minlength=None)
+            comp = rec / tot
+            # FIXME need to resolve issue with histogram edges
+            imageResults.append((bins, comp[1:]))
+        return imageResults
+
+    def metrics(self, magRange, magErrLim=None, dxLim=None):
+        """Makes scalar metrics of artificial stars in an image.
+        
+        For each image, results a tuple (RMS mag error, completeness fraction).
+        """
+        imageResults = []
+        if dxLim is not None:
+            k, dx = self.position_errors()
+        for n in xrange(self.nImages):
+            fakeMag = self.data['fake_mag'][:, n]
+            obsMag = self.data['mag'][:, n]
+            err = np.abs(fakeMag - obsMag)
+            # Dolphot gives unrecovered stars a magnitude of 99. This should
+            # safely distinguish those stars.
+            recovered = obsMag < 50.
+            if magErrLim is not None:
+                recovered = recovered & (err < magErrLim)
+            if dxLim is not None:
+                recovered = recovered & (dx < dxLim)
+            recovered = np.array(recovered, dtype=np.float)
+            # Find stars in magnitude range
+            minMask = fakeMag > min(magRange)
+            maxMask = fakeMag < max(magRange)
+            found = obsMag < 50.
+            inds = np.where(minMask & maxMask)[0]
+            indsMeasured = np.where(minMask & maxMask & found)[0]
+            comp = float(np.sum(recovered[inds]) / float(len(inds)))
+            rms = float(np.std(err[indsMeasured]))
+            imageResults.append((rms, comp))
+        return imageResults
 
 
 class DolphotTable(object):
@@ -32,75 +276,22 @@ class DolphotTable(object):
     def make(cls, tablePath, images, referenceImage, photPath, psfsPath,
             apcorPath, execTime=None):
         """Initialize a DolphotTable using data from the Dolphot class."""
-        n = len(images)
-        # Column definitions for the HDF5 table
-        # measurements specific to an image are multiplexed in a single
-        # column (ie,  a third dimension in the table)
-        colDefs = np.dtype([('ext', np.int), ('chip', np.int),
-            ('x', np.int), ('y', np.int),
-            ('ra', np.float), ('dec', np.float), ('ref_chi', np.float),
-            ('ref_sn', np.float), ('ref_sharp', np.float),
-            ('ref_round', np.float), ('major_ax', np.int),
-            ('ref_crowding', np.float), ('type', np.int),
-            ('counts', np.float, n),
-            ('sky', np.float, n), ('norm_count_rate', np.float, n),
-            ('norm_count_rate_err', np.float, n), ('mag', np.float, n),
-            ('mag_err', np.float, n), ('chi', np.float, n),
-            ('sn', np.float, n),
-            ('sharp', np.float, n), ('round', np.float, n),
-            ('crowding', np.float, n), ('fwhm', np.float, n),
-            ('ecc', np.float, n), ('psf_a', np.float, n),
-            ('psf_b', np.float, n),
-            ('psf_c', np.float, n), ('quality', np.int, n)])
-        # Data type for numpy load txt
-        dataTypes = [np.int, np.int, np.int, np.int,
-                np.float, np.float, np.float, np.float, np.int,
-                np.float, np.int]
-        colNames = ['ext', 'chip', 'x', 'y', 'ref_chi', 'ref_sn',
-                'ref_sharp', 'ref_round', 'major_ax', 'ref_crowding', 'type']
-        imgDataTypes = [np.float, np.float, np.float,
-                np.float, np.float, np.float, np.float, np.float,
-                np.float, np.float,
-                np.float, np.float,
-                np.float, np.float, np.float,
-                np.float, np.int]
-        imgColNames = ['counts', 'sky', 'norm_count_rate',
-                'norm_count_rate_err',
-                'mag', 'mag_err', 'chi', 'sn', 'sharp', 'round', 'crowding',
-                'fwhm', 'ecc', 'psf_a', 'psf_b', 'psf_c', 'quality']
-        for i in xrange(n):
-            dataTypes += imgDataTypes
-        data = np.loadtxt(photPath)
-        nStars = data.shape[0]
-        dataRecArray = np.empty(nStars, dtype=colDefs)
-        # Get columns for general star data
-        for i, colName in enumerate(colNames):
-            dataRecArray[colName] = data[:, i]
-        # Get columns for measurements from specific images
-        for j in xrange(n):
-            for i, colName in enumerate(imgColNames):
-                k = j * len(imgDataTypes) + len(colNames) + i
-                dataRecArray[colName][:, j] = data[:, k]
-
-        # Compute RA and Dec from x,y coords against ref or first image
+        # Read phot file
+        nImages = len(images)
         if referenceImage is not None:
-            refHead = getheader(referenceImage['path'])
+            refPath = referenceImage['path']
         else:
             # use the first image as a reference instead
-            refHead = getheader(images[0]['path'])
-        wcs = WCS(refHead)
-        ra, dec = wcs.all_pix2sky(dataRecArray['x'], dataRecArray['y'], 1)
-        dataRecArray['ra'] = ra
-        dataRecArray['dec'] = dec
+            refPath = images[0]['path']
+        reader = BasePhotReader(photPath, nImages, refImagePath=refPath)
 
         # Insert the structured numpy array into a new HDF5 table
         title = os.path.splitext(os.path.basename(tablePath))[0]
         if os.path.exists(tablePath): os.remove(tablePath)
         h5 = tables.openFile(tablePath, mode="w", title=title)
-        photTable = h5.createTable("/", 'phot', colDefs,
+        photTable = h5.createTable("/", 'phot', reader.data.dtype,
                 "Photometry Catalog")
-        print dataRecArray.dtype
-        photTable.append(dataRecArray)
+        photTable.append(reader.data)
         # Set meta data for the photometry table
         photTable.attrs.image_paths = [im['path'] for im in images]
         photTable.attrs.image_keys = [im['image_key'] for im in images]
@@ -146,190 +337,20 @@ class DolphotTable(object):
                     band, fmt, plotPath, magLim)
 
 
-class WIRCamFakeTable(object):
-    """Quick and dirty interface to DOLPHOT's .fake output files from
-    artificial star tests.
-    
-    .. todo:: Enable this AST photometry to be embedded in a dolphot HDF5
-       output table.
-    """
-    def __init__(self, fakePath, refImagePath=None):
-        super(WIRCamFakeTable, self).__init__()
-        self.path = fakePath
-        self._data = self._read(refImagePath)
-
-    def __add__(self, other):
-        """Return a concatenated WIRCamFakeTable."""
-        self._data = np.concatenate((self._data, other._data))
-        return self
-
-    def _read(self, refImagePath=None):
-        """Read .fake file."""
-        n = 2  # two images in WIRCam testing
-        # TODO add columns for fake stars/recovery
-        colDefs = np.dtype([
-            # Fake star columns
-            ('fake_ext', np.int), ('fake_chip', np.int),
-            ('fake_x', np.float), ('fake_y', np.float),
-            ('fake_count_1', np.float), ('fake_mag_1', np.float),
-            ('fake_count_2', np.float), ('fake_mag_2', np.float),
-            # Regular columns
-            ('ext', np.int), ('chip', np.int),
-            ('x', np.int), ('y', np.int),
-            ('ra', np.float), ('dec', np.float), ('ref_chi', np.float),
-            ('ref_sn', np.float), ('ref_sharp', np.float),
-            ('ref_round', np.float), ('major_ax', np.int),
-            ('ref_crowding', np.float), ('type', np.int),
-            ('counts', np.float, n),
-            ('sky', np.float, n), ('norm_count_rate', np.float, n),
-            ('norm_count_rate_err', np.float, n), ('mag', np.float, n),
-            ('mag_err', np.float, n), ('chi', np.float, n),
-            ('sn', np.float, n),
-            ('sharp', np.float, n), ('round', np.float, n),
-            ('crowding', np.float, n), ('fwhm', np.float, n),
-            ('ecc', np.float, n), ('psf_a', np.float, n),
-            ('psf_b', np.float, n),
-            ('psf_c', np.float, n), ('quality', np.int, n)])
-
-        # Data type for numpy load txt
-        # Prepended columns for fake stars
-        dataTypes = [np.int, np.int, np.float, np.float, # fake
-                np.float, np.float, np.float, np.float,  # fake counts/mags
-                np.int, np.int, np.int, np.int,
-                np.float, np.float, np.float, np.float, np.int,
-                np.float, np.int]
-        colNames = ['fake_ext', 'fake_chip', 'fake_x', 'fake_y',
-                'fake_count_1', 'fake_mag_1', 'fake_count_2', 'fake_mag_2',
-                'ext', 'chip', 'x', 'y', 'ref_chi', 'ref_sn',
-                'ref_sharp', 'ref_round', 'major_ax', 'ref_crowding', 'type']
-        imgDataTypes = [np.float, np.float, np.float,
-                np.float, np.float, np.float, np.float, np.float,
-                np.float, np.float,
-                np.float, np.float,
-                np.float, np.float, np.float,
-                np.float, np.int]
-        imgColNames = ['counts', 'sky', 'norm_count_rate',
-                'norm_count_rate_err',
-                'mag', 'mag_err', 'chi', 'sn', 'sharp', 'round', 'crowding',
-                'fwhm', 'ecc', 'psf_a', 'psf_b', 'psf_c', 'quality']
-        for i in xrange(n):
-            dataTypes += imgDataTypes
-        data = np.loadtxt(self.path)
-        nStars = data.shape[0]
-        dataRecArray = np.empty(nStars, dtype=colDefs)
-        # Get columns for general star data
-        for i, colName in enumerate(colNames):
-            dataRecArray[colName] = data[:, i]
-        # Get columns for measurements from specific images
-        for j in xrange(n):
-            for i, colName in enumerate(imgColNames):
-                k = j * len(imgDataTypes) + len(colNames) + i
-                dataRecArray[colName][:, j] = data[:, k]
-
-        # Compute RA and Dec from x,y coords against ref or first image
-        if refImagePath is not None:
-            refHead = getheader(refImagePath)
-            wcs = WCS(refHead)
-            ra, dec = wcs.all_pix2sky(dataRecArray['x'], dataRecArray['y'], 1)
-            dataRecArray['ra'] = ra
-            dataRecArray['dec'] = dec
-
-        return dataRecArray
-
-    def mag_errors(self):
-        """Prototype for computing output-input magnitudes for two-image AST.
-        """
-        imageResults = []
-        for n in xrange(2):
-            fakeMag = self._data['fake_mag_%i' % (n + 1, )]
-            obsMag = self._data['mag'][:, n]
-            imageResults.append((fakeMag, obsMag - fakeMag))
-        return imageResults
-
-    def position_errors(self):
-        """Prototype for computing position errors for two-image AST as the
-        Euclidean distance between input and output (x,y) coordinates.
-        """
-        fakeMagK = self._data['fake_mag_2']
-        inputX = self._data['fake_x']
-        inputY = self._data['fake_y']
-        obsX = self._data['x']
-        obsY = self._data['y']
-        dx = np.hypot(inputX - obsX, inputY - obsY)
-        return fakeMagK, dx
-
-    def completeness(self, dmag=0.2, magErrLim=None, dxLim=None):
-        """Prototype for reporting completeness in each image, as a function
-        of input magnitude using DOLPHOT's metric for star recovery success.
-        """
-        imageResults = []
-        if dxLim is not None:
-            k, dx = self.position_errors()
-        for n in xrange(2):
-            fakeMag = self._data['fake_mag_%i' % (n + 1, )]
-            obsMag = self._data['mag'][:, n]
-            # Dolphot gives unrecovered stars a magnitude of 99. This should
-            # safely distinguish those stars.
-            # recovered = np.array(obsMag < 50., dtype=np.float)
-            recovered = obsMag < 50.
-            if magErrLim is not None:
-                err = np.abs(fakeMag - obsMag)
-                recovered = recovered & (err < magErrLim)
-            if dxLim is not None:
-                recovered = recovered & (dx < dxLim)
-            recovered = np.array(recovered, dtype=np.float)
-            bins = np.arange(fakeMag.min(), fakeMag.max(), dmag)
-            inds = np.digitize(fakeMag, bins)
-            rec = np.bincount(inds, weights=recovered, minlength=None)
-            tot = np.bincount(inds, weights=None, minlength=None)
-            comp = rec / tot
-            # FIXME need to resolve issue with histogram edges
-            imageResults.append((bins, comp[1:]))
-        return imageResults
-
-    def metrics(self, magRange, magErrLim=None, dxLim=None):
-        """Makes scalar metrics of artificial stars in an image.
-        
-        For each image, results a tuple (RMS mag error, completeness fraction).
-        """
-        imageResults = []
-        if dxLim is not None:
-            k, dx = self.position_errors()
-        for n in xrange(2):
-            fakeMag = self._data['fake_mag_%i' % (n + 1, )]
-            obsMag = self._data['mag'][:, n]
-            err = np.abs(fakeMag - obsMag)
-            # Dolphot gives unrecovered stars a magnitude of 99. This should
-            # safely distinguish those stars.
-            # recovered = np.array(obsMag < 50., dtype=np.float)
-            recovered = obsMag < 50.
-            if magErrLim is not None:
-                recovered = recovered & (err < magErrLim)
-            if dxLim is not None:
-                recovered = recovered & (dx < dxLim)
-            recovered = np.array(recovered, dtype=np.float)
-            # Find stars in magnitude range
-            minMask = fakeMag > min(magRange)
-            maxMask = fakeMag < max(magRange)
-            found = obsMag < 50.
-            inds = np.where(minMask & maxMask)[0]
-            indsMeasured = np.where(minMask & maxMask & found)[0]
-            comp = float(np.sum(recovered[inds]) / float(len(inds)))
-            rms = float(np.std(err[indsMeasured]))
-            imageResults.append((rms, comp))
-        return imageResults
-
-
 if __name__ == '__main__':
+    photPath = "/Users/jsick/Dropbox/_dolphot/517eef6ce8f07284365c6156"
+    photTable = BasePhotReader(photPath, 2, refImagePath=None) 
+    print photTable.data.dtype
+    print photTable.data['chip']
     fakePath = "/Users/jsick/Dropbox/_dolphot/517eef6ce8f07284365c6156.fake"
-    fakePath2 = "/Users/jsick/Dropbox/_dolphot/517eef6ce8f07284365c6156.fake"
-    fakeTable = WIRCamFakeTable(fakePath)
-    fakeTable2 = WIRCamFakeTable(fakePath2)
+    fakeTable = FakeReader(fakePath, 2, refImagePath=None)
+    fakeTable2 = FakeReader(fakePath, 2, refImagePath=None)
+    print fakeTable.data.dtype
     print fakeTable.mag_errors()
     print fakeTable.position_errors()
     print fakeTable.completeness()
-    print len(fakeTable._data)
+    print len(fakeTable.data)
     concatTable = fakeTable + fakeTable2
-    print len(concatTable._data)
+    print len(concatTable.data)
     print fakeTable.metrics([17., 18.], magErrLim=0.2)
     print fakeTable.metrics([19., 19.5], magErrLim=0.2)
