@@ -23,8 +23,8 @@ import lfdiagnostics
 
 class BasePhotReader(object):
     """Base class for reading Dolphot photometry output files."""
-    N_IMAGE_COLS = 16
-    N_GLOBAL_COLS = 13
+    N_IMAGE_COLS = 17
+    N_GLOBAL_COLS = 11
     GLOBAL_COL_OFFSET = 0
 
     def __init__(self, filepath, nImages, refImagePath=None):
@@ -43,7 +43,6 @@ class BasePhotReader(object):
     def _read(self):
         """Pipeline for reading DOLPHOT photometry output."""
         data = np.loadtxt(self.filepath)
-        print "data shape", data.shape
         nStars = data.shape[0]
         self._extract_global_cols(data, self.GLOBAL_COL_OFFSET, nStars)
         self._extract_image_phot_cols(data,
@@ -59,6 +58,7 @@ class BasePhotReader(object):
                 ('norm_count_rate', np.float, self.nImages),
                 ('norm_count_rate_err', np.float, self.nImages),
                 ('mag', np.float, self.nImages),
+                ('mag_err', np.float, self.nImages),
                 ('chi', np.float, self.nImages),
                 ('sn', np.float, self.nImages),
                 ('sharp', np.float, self.nImages),
@@ -122,10 +122,10 @@ class FakeReader(BasePhotReader):
     N_FAKE_IMAGE_COLS = 2
 
     def __init__(self, filepath, nImages, refImagePath=None):
+        self.GLOBAL_COL_OFFSET = self.N_FAKE_GLOBAL_COLS \
+                + nImages * self.N_FAKE_IMAGE_COLS
         super(FakeReader, self).__init__(filepath, nImages,
                 refImagePath=refImagePath)
-        self.GLOBAL_COL_OFFSET = self.N_FAKE_GLOBAL_COLS \
-                + self.nImages * self.N_FAKE_IMAGE_COLS
 
     def __add__(self, other):
         """Return a concatenated FakeReader (concatenates data)."""
@@ -160,7 +160,7 @@ class FakeReader(BasePhotReader):
         self._fidata = np.empty(nStars, dtype=np.dtype(dt))
         for i in range(self.nImages):
             for j in range(self.N_FAKE_IMAGE_COLS):
-                k = self.N_FAKE_GLOBAL_COLS + i * self.N_IMAGE_COLS + j
+                k = self.N_FAKE_GLOBAL_COLS + i * self.N_FAKE_IMAGE_COLS + j
                 colname = dt[j][0]
                 self._fidata[colname][:, i] = data[:, k]
 
@@ -344,6 +344,14 @@ if __name__ == '__main__':
     print photTable.data['chip']
     fakePath = "/Users/jsick/Dropbox/_dolphot/517eef6ce8f07284365c6156.fake"
     fakeTable = FakeReader(fakePath, 2, refImagePath=None)
+    print fakeTable.data['fake_mag'][0]
+    print fakeTable.data['fake_count'][0]
+    print fakeTable.data['mag'][0]
+    print fakeTable.data['counts'][0]
+    print fakeTable.data['fake_x'][0]
+    print fakeTable.data['fake_y'][0]
+    print fakeTable.data['x'][0]
+    print fakeTable.data['y'][0]
     fakeTable2 = FakeReader(fakePath, 2, refImagePath=None)
     print fakeTable.data.dtype
     print fakeTable.mag_errors()
