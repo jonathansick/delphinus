@@ -81,8 +81,8 @@ class BasePhotReader(object):
         """Extract output for global image columns."""
         dt = [('ext', np.int),
                 ('chip', np.int),
-                ('x', np.int),
-                ('y', np.int),
+                ('x', np.float),
+                ('y', np.float),
                 ('ra', np.float),
                 ('dec', np.float),
                 ('ref_chi', np.float),
