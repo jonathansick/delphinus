@@ -204,64 +204,58 @@ class FakeReader(BasePhotReader):
         dx = np.hypot(inputX - obsX, inputY - obsY)
         return fakeMag, dx
 
-    def completeness(self, dmag=0.2, magErrLim=None, dxLim=None):
+    def completeness(self, n, dmag=0.2, magErrLim=None, dxLim=None):
         """Prototype for reporting completeness in each image, as a function
         of input magnitude using DOLPHOT's metric for star recovery success.
         """
-        imageResults = []
         if dxLim is not None:
             k, dx = self.position_errors()
-        for n in xrange(self.nImages):
-            fakeMag = self.data['fake_mag'][:, n]
-            obsMag = self.data['mag'][:, n]
-            # Dolphot gives unrecovered stars a magnitude of 99. This should
-            # safely distinguish those stars.
-            recovered = obsMag < 50.
-            if magErrLim is not None:
-                err = np.abs(fakeMag - obsMag)
-                recovered = recovered & (err < magErrLim)
-            if dxLim is not None:
-                recovered = recovered & (dx < dxLim)
-            recovered = np.array(recovered, dtype=np.float)
-            bins = np.arange(fakeMag.min(), fakeMag.max(), dmag)
-            inds = np.digitize(fakeMag, bins)
-            rec = np.bincount(inds, weights=recovered, minlength=None)
-            tot = np.bincount(inds, weights=None, minlength=None)
-            comp = rec / tot
+        fakeMag = self.data['fake_mag'][:, n]
+        obsMag = self.data['mag'][:, n]
+        # Dolphot gives unrecovered stars a magnitude of 99. This should
+        # safely distinguish those stars.
+        recovered = obsMag < 50.
+        if magErrLim is not None:
+            err = np.abs(fakeMag - obsMag)
+            recovered = recovered & (err < magErrLim)
+        if dxLim is not None:
+            recovered = recovered & (dx < dxLim)
+        recovered = np.array(recovered, dtype=np.float)
+        bins = np.arange(fakeMag.min(), fakeMag.max(), dmag)
+        inds = np.digitize(fakeMag, bins)
+        rec = np.bincount(inds, weights=recovered, minlength=None)
+        tot = np.bincount(inds, weights=None, minlength=None)
+        comp = rec / tot
             # FIXME need to resolve issue with histogram edges
-            imageResults.append((bins, comp[1:]))
-        return imageResults
+        return bins, comp[1:]
 
-    def metrics(self, magRange, magErrLim=None, dxLim=None):
+    def metrics(self, magRange, n, magErrLim=None, dxLim=None):
         """Makes scalar metrics of artificial stars in an image.
         
         For each image, results a tuple (RMS mag error, completeness fraction).
         """
-        imageResults = []
         if dxLim is not None:
             k, dx = self.position_errors()
-        for n in xrange(self.nImages):
-            fakeMag = self.data['fake_mag'][:, n]
-            obsMag = self.data['mag'][:, n]
-            err = np.abs(fakeMag - obsMag)
-            # Dolphot gives unrecovered stars a magnitude of 99. This should
-            # safely distinguish those stars.
-            recovered = obsMag < 50.
-            if magErrLim is not None:
-                recovered = recovered & (err < magErrLim)
-            if dxLim is not None:
-                recovered = recovered & (dx < dxLim)
-            recovered = np.array(recovered, dtype=np.float)
-            # Find stars in magnitude range
-            minMask = fakeMag > min(magRange)
-            maxMask = fakeMag < max(magRange)
-            found = obsMag < 50.
-            inds = np.where(minMask & maxMask)[0]
-            indsMeasured = np.where(minMask & maxMask & found)[0]
-            comp = float(np.sum(recovered[inds]) / float(len(inds)))
-            rms = float(np.std(err[indsMeasured]))
-            imageResults.append((rms, comp))
-        return imageResults
+        fakeMag = self.data['fake_mag'][:, n]
+        obsMag = self.data['mag'][:, n]
+        err = np.abs(fakeMag - obsMag)
+        # Dolphot gives unrecovered stars a magnitude of 99. This should
+        # safely distinguish those stars.
+        recovered = obsMag < 50.
+        if magErrLim is not None:
+            recovered = recovered & (err < magErrLim)
+        if dxLim is not None:
+            recovered = recovered & (dx < dxLim)
+        recovered = np.array(recovered, dtype=np.float)
+        # Find stars in magnitude range
+        minMask = fakeMag > min(magRange)
+        maxMask = fakeMag < max(magRange)
+        found = obsMag < 50.
+        inds = np.where(minMask & maxMask)[0]
+        indsMeasured = np.where(minMask & maxMask & found)[0]
+        comp = float(np.sum(recovered[inds]) / float(len(inds)))
+        rms = float(np.std(err[indsMeasured]))
+        return rms, comp
 
 
 class DolphotTable(object):
