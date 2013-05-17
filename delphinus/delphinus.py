@@ -139,6 +139,47 @@ class Dolphot(object):
         self.outputName = outputName
         self._define_output_paths(self.outputName)
 
+    def run_ast(self, outputName, starListName):
+        """Run dolphot photometry in artificial star test mode.
+        
+        This method differs from :meth:`run` in that it will create a
+        directory to perform the AST in, so that multiple star lists
+        can be simultaneously run on a single input photometry. That is,
+        this method prevents the AST output of one star list from clobbering
+        that of another.
+        """
+        astDir = os.path.join(self.workDir,
+                "%s_%s" % (outputName, starListName))
+        if not os.path.exists(astDir): os.makedirs(astDir)
+        self._define_output_paths(outputName)
+        # Symlink outputs into astDir
+        _apcorPath = os.path.join(astDir, outputName + ".apcor")
+        _columnsPath = os.path.join(astDir, outputName + ".columns")
+        _infoPath = os.path.join(astDir, outputName + ".info")
+        _psfsPath = os.path.join(astDir, outputName + ".psfs")
+        _fakePath = os.path.join(astDir, outputName + ".fake")
+        _photPath = os.path.join(astDir, outputName)
+        os.symlink(self.apcorPath, _apcorPath)
+        os.symlink(self.infoPath, _infoPath)
+        os.symlink(self.columnsPath, _columnsPath)
+        os.symlink(self.psfsPath, _psfsPath)
+        os.symlink(self.photPath, _photPath)
+        # Run photometry
+        self.write_parameters(os.path.join(astDir, outputName + ".params"),
+            fullPath=True)
+        outputPath = os.path.join(astDir, outputName)
+        command = "dolphot %s -p%s" % (outputPath, self.paramPath)
+        with Timer() as t:
+            subprocess.call(command, shell=True)
+        self.execTime = t.interval
+        # Move AST result back to main directory, labeled with star list name
+        self.fakePath = os.path.join(self.workDir,
+                "%s_%s.fake" % (outputName, starListName))
+        if os.path.exists(self.fakePath): os.remove(self.fakePath)
+        shutil.move(_fakePath, self.fakePath)
+        # Delete AST dir
+        shutil.rmtree(astDir)
+
     def _define_output_paths(self, outputName):
         """Define paths to the dolphot outputs"""
         self.apcorPath = os.path.join(self.workDir, outputName + ".apcor")
