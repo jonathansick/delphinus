@@ -12,14 +12,25 @@ import matplotlib.gridspec as gridspec
 
 def make_diagnostic_plot(dolphotTable, i, imageKey, band, fmt, plotPath,
         magLim=None):
-    mag = dolphotTable.photTable.read(field='mag')[:, i]
+    print dolphotTable.image_paths
+    nImages = len(dolphotTable.photTable.attrs.image_paths)
     objtype = dolphotTable.photTable.read(field='type')
-    quality = dolphotTable.photTable.read(field='quality')[:, i]
-    chi = dolphotTable.photTable.read(field='chi')[:, i]
-    sn = dolphotTable.photTable.read(field='sn')[:, i]
-    sharp = dolphotTable.photTable.read(field='sharp')[:, i]
-    crowding = dolphotTable.photTable.read(field='crowding')[:, i]
-    ecc = dolphotTable.photTable.read(field='ecc')[:, i]
+    if nImages > 1:
+        mag = dolphotTable.photTable.read(field='mag')[:, i]
+        quality = dolphotTable.photTable.read(field='quality')[:, i]
+        chi = dolphotTable.photTable.read(field='chi')[:, i]
+        sn = dolphotTable.photTable.read(field='sn')[:, i]
+        sharp = dolphotTable.photTable.read(field='sharp')[:, i]
+        crowding = dolphotTable.photTable.read(field='crowding')[:, i]
+        ecc = dolphotTable.photTable.read(field='ecc')[:, i]
+    else:
+        mag = dolphotTable.photTable.read(field='mag')
+        quality = dolphotTable.photTable.read(field='quality')
+        chi = dolphotTable.photTable.read(field='chi')
+        sn = dolphotTable.photTable.read(field='sn')
+        sharp = dolphotTable.photTable.read(field='sharp')
+        crowding = dolphotTable.photTable.read(field='crowding')
+        ecc = dolphotTable.photTable.read(field='ecc')
 
     if magLim is None:
         magBins = np.arange(mag.min(), mag.max(), 0.5)
@@ -34,9 +45,9 @@ def make_diagnostic_plot(dolphotTable, i, imageKey, band, fmt, plotPath,
     flagFrequencies = _measure_flag_frequencies(quality, inds, nBins)
     snMean, snStd = _measure_luminosity_trend(sn, inds, nBins)
     sharpMean, sharpStd = _measure_luminosity_trend(sharp, inds, nBins)
-    crowdingMean, crowdingStd = _measure_luminosity_trend(crowding, inds, nBins)
+    crowdingMean, crowdingStd = _measure_luminosity_trend(crowding, inds,
+            nBins)
     eccMean, eccStd = _measure_luminosity_trend(ecc, inds, nBins)
-
 
     fig = Figure(figsize=(7, 10))
     canvas = FigureCanvas(fig)
