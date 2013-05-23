@@ -197,8 +197,12 @@ class FakeReader(BasePhotReader):
         """
         imageResults = []
         for n in xrange(self.nImages):
-            fakeMag = self.data['fake_mag'][:, n]
-            obsMag = self.data['mag'][:, n]
+            if self.nImages > 1:
+                fakeMag = self.data['fake_mag'][:, n]
+                obsMag = self.data['mag'][:, n]
+            else:
+                fakeMag = self.data['fake_mag']
+                obsMag = self.data['mag']
             imageResults.append((fakeMag, obsMag - fakeMag))
         return imageResults
 
@@ -206,7 +210,10 @@ class FakeReader(BasePhotReader):
         """Prototype for computing position errors for AST as the
         Euclidean distance between input and output (x,y) coordinates.
         """
-        fakeMag = self.data['fake_mag'][:, magIndex]
+        if self.nImages > 1:
+            fakeMag = self.data['fake_mag'][:, magIndex]
+        else:
+            fakeMag = self.data['fake_mag']
         inputX = self.data['fake_x']
         inputY = self.data['fake_y']
         obsX = self.data['x']
@@ -220,8 +227,12 @@ class FakeReader(BasePhotReader):
         """
         if dxLim is not None:
             k, dx = self.position_errors()
-        fakeMag = np.atleast_2d(self.data['fake_mag'])[:, n]
-        obsMag = np.atleast_2d(self.data['mag'][:, n])
+        if self.nImages > 1:
+            fakeMag = self.data['fake_mag'][:, n]
+            obsMag = self.data['mag'][:, n]
+        else:
+            fakeMag = self.data['fake_mag']
+            obsMag = self.data['mag']
         # Dolphot gives unrecovered stars a magnitude of 99. This should
         # safely distinguish those stars.
         recovered = obsMag < 50.
@@ -246,8 +257,12 @@ class FakeReader(BasePhotReader):
         """
         if dxLim is not None:
             k, dx = self.position_errors()
-        fakeMag = np.atleast_2d(self.data['fake_mag'])[:, n]
-        obsMag = np.atleat_2d(self.data['mag'])[:, n]
+        if self.nImages > 1:
+            fakeMag = self.data['fake_mag'][:, n]
+            obsMag = self.data['mag'][:, n]
+        else:
+            fakeMag = self.data['fake_mag']
+            obsMag = self.data['mag']
         err = np.abs(fakeMag - obsMag)
         # Dolphot gives unrecovered stars a magnitude of 99. This should
         # safely distinguish those stars.
