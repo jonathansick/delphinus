@@ -581,13 +581,16 @@ class DolphotParameters(object):
 class Timer:
     """Timer function, via http://preshing.com/
        20110924/timing-your-code-using-pythons-with-statement
+
+    This timer uses :func:`time.time` to measure wall time so that it can
+    accurately measure the time taken by subprocesses (such as `dolphot`).
     """
     def __enter__(self):
-        self.start = time.clock()
+        self.start = time.time()
         return self
 
     def __exit__(self, *args):
-        self.end = time.clock()
+        self.end = time.time()
         self.interval = self.end - self.start
 
 
