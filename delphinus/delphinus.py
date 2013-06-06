@@ -191,11 +191,11 @@ class Dolphot(object):
         # path list for psf fits files
         self.psf_fits_paths = [os.path.join(self.workDir,
             outputName + ".%i.psf.fits" % n)
-            for n in xrange(1, len(self.images + 1))]
+            for n in xrange(1, len(self.images) + 1)]
         # path list for resdiaul fits files
         self.res_fits_paths = [os.path.join(self.workDir,
             outputName + ".%i.res.fits" % n)
-            for n in xrange(1, len(self.images + 1))]
+            for n in xrange(1, len(self.images) + 1)]
         self.outputName = outputName
 
     def label_fake_output(self, label):
