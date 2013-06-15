@@ -187,6 +187,7 @@ class Dolphot(object):
         self.infoPath = os.path.join(self.workDir, outputName + ".info")
         self.psfsPath = os.path.join(self.workDir, outputName + ".psfs")
         self.fakePath = os.path.join(self.workDir, outputName + ".fake")
+        self.warnPath = os.path.join(self.workDir, outputName + ".warnings")
         self.photPath = os.path.join(self.workDir, outputName)
         # path list for psf fits files
         self.psf_fits_paths = [os.path.join(self.workDir,
