@@ -136,7 +136,7 @@ class FakeReader(BasePhotReader):
         """Return a concatenated FakeReader (concatenates data)."""
         self.data = np.concatenate((self.data, other.data))
         return self
-    
+
     def extract_additional_columns(self, data, nImages, nStars):
         """Reads additional columns for .fake output."""
         self._extract_fake_global_cols(data, nStars)
@@ -169,7 +169,7 @@ class FakeReader(BasePhotReader):
                 colname = dt[j][0]
                 # FIXME fix for nimages=1 shape
                 if nImages > 1:
-                    self._fidata[colname] = data[:, k]
+                    self._fidata[colname][:, i] = data[:, k]
                 else:
                     self._fidata[colname] = data[:, k]
                 # self._fidata[colname][:, i] = data[:, k]
@@ -194,21 +194,21 @@ class FakeReader(BasePhotReader):
 
     def mag_errors(self):
         """Compute output-input magnitude difference for AST.
+
+        Returns
+        -------
+        An nImage by nStars array of output-input differences.
         """
-        imageResults = []
-        for n in xrange(self.nImages):
-            if self.nImages > 1:
-                fakeMag = self.data['fake_mag'][:, n]
-                obsMag = self.data['mag'][:, n]
-            else:
-                fakeMag = self.data['fake_mag']
-                obsMag = self.data['mag']
-            imageResults.append((fakeMag, obsMag - fakeMag))
-        return imageResults
+        diffs = self.data['mag'] - self.data['fake_mag']
+        return diffs
 
     def position_errors(self, magIndex=0):
         """Prototype for computing position errors for AST as the
         Euclidean distance between input and output (x,y) coordinates.
+
+        .. todo:: Should not return fakeMag
+
+        .. todo:: Should cache results
         """
         if self.nImages > 1:
             fakeMag = self.data['fake_mag'][:, magIndex]
@@ -221,11 +221,144 @@ class FakeReader(BasePhotReader):
         dx = np.hypot(inputX - obsX, inputY - obsY)
         return fakeMag, dx
 
-    def completeness(self, n, dmag=0.2, magErrLim=None, dxLim=None):
-        """Prototype for reporting completeness in each image, as a function
-        of input magnitude using DOLPHOT's metric for star recovery success.
+    def completeness(self, n, mag_err_lim=None, dx_lim=None,
+            frac=0.5, dmag=0.1):
+        """Returns magnitude vs completeness fraction for the given image.
+
+        n : int
+            Index of image to compute completeness limit for.
+        mag_err_lim : float
+            Maximum absolute difference in magnitudes, in any band, for the
+            star to be considered recovered.
+        dx_lim : float
+            Maximum distance between a fake star's input site and its
+            observed site for the fake star to be considered recovered.
+        frac : float
+            Scalar fractional level of completeness. For example, 0.5 is the
+            50% completeness limit.
+        dmag : float
+            Bin width (magnitudes) in histogram when establishing completeness
+            per bin.
         """
-        if dxLim is not None:
+        recovered = self.recovered_in_image(n, mag_err_lim=mag_err_lim,
+                dx_lim=dx_lim)
+        if self.nImages > 1:
+            fakeMag = self.data['fake_mag'][:, n]
+        else:
+            fakeMag = self.data['fake_mag']
+        bins = np.arange(fakeMag.min(), fakeMag.max(), dmag)
+        inds = np.digitize(fakeMag, bins)
+        rec = np.bincount(inds, weights=recovered, minlength=None)
+        tot = np.bincount(inds, weights=None, minlength=None)
+        comp = rec / tot
+        return bins, comp[1:]
+
+    def completeness_limits(self, mag_err_lim=None, dx_lim=None,
+            frac=0.5, dmag=0.1):
+        """Compute the completeness limit against each image.
+        Returns a list of completeness limits corresponding to each image.
+        
+        mag_err_lim : float
+            Maximum absolute difference in magnitudes, in any band, for the
+            star to be considered recovered.
+        dx_lim : float
+            Maximum distance between a fake star's input site and its
+            observed site for the fake star to be considered recovered.
+        frac : float
+            Scalar fractional level of completeness. For example, 0.5 is the
+            50% completeness limit.
+        dmag : float
+            Bin width (magnitudes) in histogram when establishing completeness
+            per bin.
+        """
+        comps = []
+        for n in xrange(self.nImages):
+            c = self.completeness_limit_for_image(n,
+                    mag_err_lim=mag_err_lim, dx_lim=dx_lim,
+                    frac=frac, dmag=dmag)
+            comps.append(c)
+        return comps
+
+    def completeness_limit_for_image(self, n, mag_err_lim=None, dx_lim=None,
+            frac=0.5, dmag=0.1):
+        """Compute the completeness limit against each a single image.
+        
+        n : int
+            Index of image to compute completeness limit for.
+        mag_err_lim : float
+            Maximum absolute difference in magnitudes, in any band, for the
+            star to be considered recovered.
+        dx_lim : float
+            Maximum distance between a fake star's input site and its
+            observed site for the fake star to be considered recovered.
+        frac : float
+            Scalar fractional level of completeness. For example, 0.5 is the
+            50% completeness limit.
+        dmag : float
+            Bin width (magnitudes) in histogram when establishing completeness
+            per bin.
+        """
+        bins, comp = self.completeness(n,
+                mag_err_lim=mag_err_lim, dx_lim=dx_lim, dmag=dmag)
+        # Solve where completeness crosses the threshold
+        # TODO this could be made a lot smarter (i.e., ensure completeess
+        # is declining; interpolate between bins; smooth)
+        msk = np.where(np.isfinite(comp) == True)[0]
+        i = np.argmin((comp[msk] - frac) ** 2.)
+        return bins[i]
+
+    def recovered(self, mag_err_lim=None, dx_lim=None):
+        """Generates a boolean array indicating if each star is recovered or
+        not. This effectively is a boolean AND of results from
+        `recovered_in_images`.
+        
+        A star is recovered if:
+            
+        1. Recovered magnitude error in any band is less than `mag_err_limit`.
+        2. Recovered position is within `dx_lim` pixels of the artificial star.
+
+        and if DOLPHOT observes a star at all at the artificial star's site.
+
+        mag_err_lim : float
+            Maximum absolute difference in magnitudes, in any band, for the
+            star to be considered recovered.
+        dx_lim : float
+            Maximum distance between a fake star's input site and its
+            observed site for the fake star to be considered recovered.
+        """
+        if self.nImages > 1:
+            recoveryArrays = [self.recovered_in_image(0,
+                    mag_err_lim=mag_err_lim, dx_lim=dx_lim)
+                    for i in xrange(self.nImages)]
+            rec = recoveryArrays[0]
+            for r in recoveryArrays[1:]:
+                rec = rec & r
+            return rec
+        else:
+            return self.recovered_in_images(0,
+                    mag_err_lim=mag_err_lim, dx_lim=dx_lim)
+
+    def recovered_in_image(self, n, mag_err_lim=None, dx_lim=None):
+        """Generates a boolean array indicating if each star is recovered in
+        the given image (`n`) or not.
+
+        A star is recovered if:
+            
+        1. Recovered magnitude error in any band is less than `mag_err_limit`.
+        2. Recovered position is within `dx_lim` pixels of the artificial star.
+
+        and if DOLPHOT observes a star at all at the artificial star's site.
+        
+        n : int
+            Index of image.
+        mag_err_lim : float
+            Maximum absolute difference in magnitudes, in any band, for the
+            star to be considered recovered.
+        dx_lim : float
+            Maximum distance between a fake star's input site and its
+            observed site for the fake star to be considered recovered.
+        """
+        if dx_lim is not None:
             k, dx = self.position_errors()
         if self.nImages > 1:
             fakeMag = self.data['fake_mag'][:, n]
@@ -233,22 +366,13 @@ class FakeReader(BasePhotReader):
         else:
             fakeMag = self.data['fake_mag']
             obsMag = self.data['mag']
-        # Dolphot gives unrecovered stars a magnitude of 99. This should
-        # safely distinguish those stars.
-        recovered = obsMag < 50.
-        if magErrLim is not None:
-            err = np.abs(fakeMag - obsMag)
-            recovered = recovered & (err < magErrLim)
-        if dxLim is not None:
-            recovered = recovered & (dx < dxLim)
-        recovered = np.array(recovered, dtype=np.float)
-        bins = np.arange(fakeMag.min(), fakeMag.max(), dmag)
-        inds = np.digitize(fakeMag, bins)
-        rec = np.bincount(inds, weights=recovered, minlength=None)
-        tot = np.bincount(inds, weights=None, minlength=None)
-        comp = rec / tot
-            # FIXME need to resolve issue with histogram edges
-        return bins, comp[1:]
+        recovered = np.ones(self.data.shape[0], dtype=np.bool)
+        if dx_lim is not None:
+            recovered[dx > dx_lim] = 0
+        if mag_err_lim is not None:
+            magErr = np.sqrt((fakeMag - obsMag) ** 2.)
+            recovered[magErr > mag_err_lim] = 0
+        return recovered
 
     def metrics(self, magRange, n, magErrLim=None, dxLim=None):
         """Makes scalar metrics of artificial stars in an image.
@@ -288,9 +412,12 @@ class DolphotTable(object):
     def __init__(self, hdfPath):
         super(DolphotTable, self).__init__()
         self.hdfPath = hdfPath
+        self._open_hdf()
+
+    def _open_hdf(self):
         self.hdf = tables.openFile(self.hdfPath)
         self.photTable = self.hdf.root.phot
-    
+
     @classmethod
     def make(cls, tablePath, images, referenceImage, photPath, psfsPath,
             apcorPath, execTime=None):
@@ -354,6 +481,85 @@ class DolphotTable(object):
             plotPath = "%s_%s_%s.%s" % (plotPathRoot, imageKey, band, fmt)
             lfdiagnostics.make_diagnostic_plot(self, i, imageKey,
                     band, fmt, plotPath, magLim)
+
+    def add_column(self, colname, coldata, shape=None):
+        """Add a column to the photometry table.
+        
+        The procedure for adding columns to pytables tables is given by
+        https://gist.github.com/swarbhanu/1405074
+        """
+        # TODO handle case of existing column
+
+        self.hdf.close()
+
+        # Open it again in append mode
+        fileh = tables.openFile(self.hdfPath, "a")
+        # group = fileh.root.tmp_phottable
+        table = fileh.root.phot
+
+        # Get a description of table in dictionary format
+        descr = table.description._v_colObjects
+        descr2 = descr.copy()
+
+        # Add a column to description
+        if len(coldata.shape) > 1:
+            descr2[colname] = tables.Float64Col(dflt=False,
+                    shape=tuple([coldata.shape[1]]))
+        else:
+            descr2[colname] = tables.Float64Col(dflt=False)
+
+        # Create a new table with the new description
+        table2 = fileh.createTable(fileh.root, 'table2', descr2, "A table",
+                tables.Filters(1))
+
+        # Copy the user attributes
+        table.attrs._f_copy(table2)
+
+        # Fill the rows of new table with default values
+        for i in xrange(table.nrows):
+            table2.row.append()
+        # Flush the rows to disk
+        table2.flush()
+
+        # Copy the columns of source table to destination
+        for col in descr:
+            getattr(table2.cols, col)[:] = getattr(table.cols, col)[:]
+
+        # Fill the new column
+        getattr(table2.cols, colname)[:] = coldata
+
+        # Remove the original table
+        table.remove()
+
+        # Move table2 to table
+        table2.move('/','phot')
+
+        # Finally, close the file
+        fileh.close()
+
+        # Re-open in read-only mode
+        self._open_hdf()
+
+    def set_metadata(self, key, value):
+        """Write metadata to the photometry table.
+        
+        Parameters
+        ----------
+        key : str
+            Key for metadata dict.
+        value : 
+            Value of metadata.
+        """
+        self.hdf.close()
+
+        # Open it again in append mode
+        fileh = tables.openFile(self.hdfPath, "a")
+        # group = fileh.root.tmp_phottable
+        table = fileh.root.phot
+        setattr(table._v_attrs, key, value)
+        table.flush()
+        fileh.close()
+        self._open_hdf()
 
 
 if __name__ == '__main__':
