@@ -225,6 +225,9 @@ class FakeReader(BasePhotReader):
             frac=0.5, dmag=0.1):
         """Returns magnitude vs completeness fraction for the given image.
 
+        Parameters
+        ----------
+
         n : int
             Index of image to compute completeness limit for.
         mag_err_lim : float
@@ -257,6 +260,9 @@ class FakeReader(BasePhotReader):
             frac=0.5, dmag=0.1):
         """Compute the completeness limit against each image.
         Returns a list of completeness limits corresponding to each image.
+
+        Parameters
+        ----------
         
         mag_err_lim : float
             Maximum absolute difference in magnitudes, in any band, for the
@@ -283,6 +289,9 @@ class FakeReader(BasePhotReader):
             frac=0.5, dmag=0.1):
         """Compute the completeness limit against each a single image.
         
+        Parameters
+        ----------
+
         n : int
             Index of image to compute completeness limit for.
         mag_err_lim : float
@@ -310,7 +319,7 @@ class FakeReader(BasePhotReader):
     def recovered(self, mag_err_lim=None, dx_lim=None):
         """Generates a boolean array indicating if each star is recovered or
         not. This effectively is a boolean AND of results from
-        `recovered_in_images`.
+        :meth:`recovered_in_image`.
         
         A star is recovered if:
             
@@ -318,6 +327,9 @@ class FakeReader(BasePhotReader):
         2. Recovered position is within `dx_lim` pixels of the artificial star.
 
         and if DOLPHOT observes a star at all at the artificial star's site.
+
+        Parameters
+        ----------
 
         mag_err_lim : float
             Maximum absolute difference in magnitudes, in any band, for the
@@ -349,6 +361,9 @@ class FakeReader(BasePhotReader):
 
         and if DOLPHOT observes a star at all at the artificial star's site.
         
+        Parameters
+        ----------
+
         n : int
             Index of image.
         mag_err_lim : float
@@ -545,6 +560,7 @@ class DolphotTable(object):
         
         Parameters
         ----------
+
         key : str
             Key for metadata dict.
         value : 

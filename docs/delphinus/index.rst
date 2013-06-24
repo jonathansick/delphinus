@@ -1,5 +1,13 @@
-Template package
-================
+Delphinus
+=========
 
-This is the documentation for the affiliated package.
+Delphinus helps you integrate DOLPHOT into your python pipelines.
+It manages running dolphot, reading photometry tables, and reduces artificial star tests.
 
+Contents
+--------
+
+.. toctree::
+  :maxdepth: 2
+
+  api.rst

@@ -29,3 +29,6 @@ nosetests.xml
 
 delphinus/version.py
 delphinus/delphinus.cfg
+
+docs/_build
+docs/_generated

@@ -13,6 +13,9 @@ from scipy.spatial import cKDTree as KDTree
 class StarList(object):
     """Make and write an artifcial star list.
     
+    Parameters
+    ----------
+
     nImages : int
         Number of images expected.
     """
@@ -24,6 +27,9 @@ class StarList(object):
     def add_stars(self, x, y, counts, ext=0, chip=1):
         """Add a list of stars for a given `ext` and `chip`.
         
+        Parameters
+        ----------
+
         x,y : ndarray
             Pixel coordinates of artificial stars in frame of the reference
             image (or first image).
@@ -50,9 +56,28 @@ class StarList(object):
         self._groups.append(stars)
 
     def add_stars_mags(self, x, y, mags, zps=25, exptimes=1., ext=0, chip=1):
-        """Identical to :func:`add_stars` except that star brightnesses can
+        """Identical to :meth:`add_stars` except that star brightnesses can
         be given as magnitudes. Zeropoints and exposure times will translate
         those magnitudes into counts on each image.
+
+        Parameters
+        ----------
+
+        x,y : ndarray
+            Pixel coordinates of artificial stars in frame of the reference
+            image (or first image).
+        mags : tuple
+            Artificial stars brightnesses, in magnitudes, for each image.
+            The order must be consistent with the ordering of each image
+            photometered in the original DOLPHOT run.
+        zps : tuple or float
+            Zeropoint of either all images (a `float`) or a sequence of
+            zeropoints corresponding to the list of images in the artficial
+            star test.
+        ext : int
+            Extension number, typically 0 for main image.
+        chip : int
+            Chip number, typically 1.
         """
         nImages = len(mags)
         if not isinstance(zps, (tuple, list)):
@@ -88,6 +113,9 @@ class ASTReducer(object):
     stars, completeness estimates for individual stars, and 50% completeness
     limits for individual bands.
 
+    Parameters
+    ----------
+
     fakeReader : :class:`delphinus.phottable.FakeReader`
         A `FakeReader` instance with all artificial stars. Note that multiple
         `FakeReader` instances to can be added together to combine multiple
@@ -106,6 +134,19 @@ class ASTReducer(object):
         Load photometry from fake table (from same chip, ext as primary data.
         For each star in the phot table, get its magnitude.
         Use a kdtree to get the N most similar stars; compute statistics
+
+        Parameters
+        ----------
+
+        frac : float
+            Scalar fractional level of completeness. For example, 0.5 is the
+            50% completeness limit.
+        mag_err_lim : float
+            Maximum absolute difference in magnitudes, in any band, for the
+            star to be considered recovered.
+        dx_lim : float
+            Maximum distance between a fake star's input site and its
+            observed site for the fake star to be considered recovered.
         """
         mag_errors = self._f.mag_errors()  # diffs nstars x nimages
         recovered = self._f.recovered(mag_err_lim=mag_err_lim, dx_lim=dx_lim)
@@ -142,6 +183,9 @@ class ASTReducer(object):
         """Compute the completeness limit for each image. The magnitude at
         the completeness limit is saved as a an attribute to the phot table
         in the HDF5 file.
+
+        Parameters
+        ----------
 
         frac : float
             Scalar fractional level of completeness. For example, 0.5 is the

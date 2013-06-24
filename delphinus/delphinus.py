@@ -18,10 +18,15 @@ from phottable import DolphotTable
 
 
 class Dolphot(object):
-    """docstring for Dolphot
+    """The :class:`Dolphot` class manages a single run of `dolphot` itself.
+
+    This class manages `dolphot` parameters, runs `dolphot`, and provides
+    paths to the `dolphot` output, including the ability to compile the
+    `dolphot` photometry tables into a Pythonic data structure.
 
     Parameters
     ----------
+
     workDir : str
         Work directory for photometry
     **params : kwargs
@@ -30,6 +35,7 @@ class Dolphot(object):
     
     Attributes
     ----------
+
     images : list
         List of dictionaries for images being photometered. Has fields for
         parameters, etc, associated with each photometered image
@@ -148,6 +154,8 @@ class Dolphot(object):
         can be simultaneously run on a single input photometry. That is,
         this method prevents the AST output of one star list from clobbering
         that of another.
+
+        .. note:: This method may be deprecated.
         """
         astDir = os.path.join(self.workDir,
                 "%s_%s" % (outputName, starListName))
