@@ -26,3 +26,6 @@ pip-log.txt
 .coverage
 .tox
 nosetests.xml
+
+delphinus/version.py
+delphinus/delphinus.cfg
