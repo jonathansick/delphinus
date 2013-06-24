@@ -121,3 +121,8 @@ if not _ASTROPY_SETUP_:
             del e
 
     del os, warn, config_dir  # clean up namespace
+
+
+from .delphinus import Dolphot, DolphotParameters
+from .phottable import FakeReader, DolphotTable
+from .artstars import StarList
