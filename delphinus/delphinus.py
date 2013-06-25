@@ -399,6 +399,11 @@ class DolphotParameters(object):
         star list filename for warmstart
     xytpsf : str or None
         PSF solution for the reference image for difference image photomtry.
+    photsec : list or None
+        Optinally, specify a subset fo the image to be photometered (relative
+        to first image, or referene image). Pass a list of six integer values:
+        extension (usually 0), Z (usually 1), minimum X, minimum Y, maximum X,
+        maximum Y.
     """
     def __init__(self, PSFPhot=2, FitSky=1, SkipSky=1, SkySig=2.25,
             SigFind=2.5, SigFindMult=0.85,
@@ -413,7 +418,7 @@ class DolphotParameters(object):
             ApCor=0, SubPixel=1,
             FakeStars=None, FakeMatch=3., FakeStarPSF=0, FakePSF=1.5,
             RandomFake=1,
-            xytfile=None, xytpsf=None):
+            xytfile=None, xytpsf=None, photsec=None):
         self.refImageParams = None
         self.imageParams = []
         self.params = {"PSFPhot": PSFPhot, "FitSky": FitSky,
@@ -431,7 +436,7 @@ class DolphotParameters(object):
             "ApCor": ApCor, "SubPixel": SubPixel, "FakeStars": FakeStars,
             "FakeMatch": FakeMatch, "FakeStarPSF": FakeStarPSF,
             "FakePSF": FakePSF, "RandomFake": RandomFake,
-            "xytfile": xytfile, "xytpsf": xytpsf}
+            "xytfile": xytfile, "xytpsf": xytpsf, "photsec": photsec}
 
     def setup_image(self, path, psfA=(3, 0, 0, 0, 0, 0),
             psfB=(3, 0, 0, 0, 0, 0), psfC=(0, 0, 0, 0, 0, 0),
@@ -578,11 +583,16 @@ class DolphotParameters(object):
             "psfstars": "%s", "psfoff": "%.1f", "ApCor": "%i",
             "SubPixel": "%i", "FakeStars": "%s", "FakeMatch": "%.2f",
             "FakeStarPSF": "%i", "FakePSF": "%.2f", "RandomFake": "%i",
-            "xytfile": "%s", "xytpsf": "%s"}
+            "xytfile": "%s", "xytpsf": "%s",
+            "photsec": "%i %i %i %i %i %i"}
         lines = []
         for key, p in self.params.iteritems():
             if p is None: continue
             if key not in formatters: continue  # don't know this key
+            if type(p) is list:
+                p = tuple(p)
+            if key == "photsec":
+                print key, p
             lines.append(key + " = " + formatters[key] % p)
         return lines
 
