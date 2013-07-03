@@ -61,6 +61,7 @@ class Dolphot(object):
             os.makedirs(workDir)
         self.workDir = workDir
         self.execTime = None
+        self.tablePath = None
 
     def add_image(self, imagePath, key=None, band=None, **params):
         """Add an image to the set to be photometered.
