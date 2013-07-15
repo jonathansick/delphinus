@@ -11,5 +11,5 @@ nose==1.3.0
 numexpr==2.1
 numpy==1.7.1
 scipy==0.12.0
-tables==2.4.0
+-e git+https://github.com/PyTables/PyTables.git@v.2.4.0#egg=tables
 wsgiref==0.1.2
