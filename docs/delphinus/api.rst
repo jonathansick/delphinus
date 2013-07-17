@@ -7,7 +7,7 @@ Delphinus API Reference
 
 .. automodapi:: delphinus.phottable
    :no-inheritance-diagram:
-   :skip: WCS
+   :skip: WCS, Table
 
 .. automodapi:: delphinus.artstars
    :no-inheritance-diagram:

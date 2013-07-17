@@ -8,6 +8,7 @@ output into HDF5 files and providing nice hooks into those HDF5 tables.
 import os
 import numpy as np
 import numpy.lib.recfunctions as recf
+
 try:
     from astropy.wcs import WCS
 except ImportError:
@@ -16,6 +17,9 @@ try:
     from astropy.io.fits import getheader
 except ImportError:
     from pyfits import getheader
+from astropy.io import ascii
+from astropy.table import Table
+
 import tables
 
 import lfdiagnostics
@@ -576,6 +580,71 @@ class DolphotTable(object):
         table.flush()
         fileh.close()
         self._open_hdf()
+
+
+    def export_ascii(self, path, global_cols=None, image_cols=None,
+            colors=None):
+        """Export an ASCII table of the dataset, saving it to `path`.
+        
+        Parameters
+        ----------
+
+        path : str
+            Relative path where the file will be written.
+        global_cols : list
+            Sequence of column names to export that are global, (applying
+            to all images)
+        image_cols : list
+            Sequence of column names to export that apply to each image.
+            In the output file these columns will have a suffix corresponding
+            to each image's key.
+        colors : list of tuples
+            Colours (e.g., B-V) can also be computed an exported in a new
+            column. For each colour, add a tuple to the `colors` list. That
+            tuple has two items, corresponding to the indices of the images.
+            If the J-band image is at index 0, and the K-band image at index
+            1, then::
+
+                colors=[(0, 1)]
+
+            will create a column named `J_K`, assuming those are the image
+            bands for those columns.
+        """
+        # Build astropy table for output
+        cols = {}
+        colnames = []
+        
+        for cname in global_cols:
+            cols[cname] = self.photTable.read(field=cname)
+            colnames.append(cname)
+        
+        nimages = len(self.image_keys)
+        for cname in image_cols:
+            if nimages > 1:
+                data = self.photTable.read(field=cname)
+                for i, iname in enumerate(self.image_keys):
+                    full_cname = "_".join([cname, iname])
+                    cols[full_cname] = data[:, i]
+                    colnames.append(full_cname)
+            else:
+                cols[cname] = self.photTable.read(field=cname)
+                colnames.append(cname)
+
+        if colors is not None:
+            mags = self.photTable.read(field='mag')
+            for cindex in colors:
+                iB, iR = cindex
+                print cindex
+                print self.image_bands
+                colournames = [self.image_bands[j] for j in cindex]
+                colour = mags[:, iB] - mags[:, iR]
+                cname = "_".join(colournames)
+                cols[cname] = colour
+                colnames.append(cname)
+
+        tbl = Table(cols, names=colnames)
+        with open(path, 'w') as f:
+            ascii.write(tbl, f)
 
 
 if __name__ == '__main__':
