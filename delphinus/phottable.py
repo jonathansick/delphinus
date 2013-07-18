@@ -53,6 +53,7 @@ class BasePhotReader(object):
                 self.GLOBAL_COL_OFFSET + self.N_GLOBAL_COLS,
                 self.nImages, nStars)
         self.extract_additional_columns(data, self.nImages, nStars)  # hook
+        self._fill_radec()
         self.combine_structured_array()
 
     def _extract_image_phot_cols(self, data, offset, nImages, nStars):
