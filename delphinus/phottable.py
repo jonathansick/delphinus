@@ -394,6 +394,35 @@ class FakeReader(BasePhotReader):
             recovered[magErr > mag_err_lim] = 0
         return recovered
 
+    def export_for_starfish(self, output_path):
+        """Export artificial star test data for the StarFISH `synth` command.
+
+        Parameters
+        ----------
+
+        output_path : str
+            Path where crowding table will be written.
+        """
+        dt = [('ra', np.float), ('dec', np.float)]
+        for i in xrange(self.nImages):
+            dt.append(('mag_%i' % i, np.float))
+            dt.append(('dmag_%i' % i, np.float))
+        d = np.empty(self.data.shape[0], dtype=np.dtype(dt))
+        d['ra'][:] = self.data['fake_ra'][:]
+        d['dec'][:] = self.data['fake_dec'][:]
+        for i in xrange(self.nImages):
+            mtag = 'mag_%i' % i
+            dtag = 'dmag_%i' % i
+            d[mtag][:] = self.data['mag'][:, i]
+            d[dtag][:] = self.data['fake_mag'][:, i] - self.data['mag'][:, i]
+            # Find obvious drop-outs
+            dropout = np.where(np.abs(d[dtag]) > 10.)[0]
+            d[dtag][dropout] = 9.99  # label for StarFISH
+        dirname = os.path.dirname(output_path)
+        if not os.path.exists(dirname): os.makedirs(dirname)
+        t = Table(d)
+        t.write(output_path, format='ascii.no_header', delimiter=' ')
+
     def metrics(self, magRange, n, magErrLim=None, dxLim=None):
         """Makes scalar metrics of artificial stars in an image.
         
