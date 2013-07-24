@@ -413,8 +413,8 @@ class FakeReader(BasePhotReader):
         for i in xrange(self.nImages):
             mtag = 'mag_%i' % i
             dtag = 'dmag_%i' % i
-            d[mtag][:] = self.data['mag'][:, i]
-            d[dtag][:] = self.data['fake_mag'][:, i] - self.data['mag'][:, i]
+            d[mtag][:] = self.data['fake_mag'][:, i]  # input magnitude
+            d[dtag][:] = self.data['mag'][:, i] - self.data['fake_mag'][:, i]
             # Find obvious drop-outs
             dropout = np.where(np.abs(d[dtag]) > 10.)[0]
             d[dtag][dropout] = 9.99  # label for StarFISH
