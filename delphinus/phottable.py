@@ -426,6 +426,8 @@ class FakeReader(BasePhotReader):
         t = Table(d)
         t.write(output_path,
                 format='ascii.fixed_width_no_header',
+                delimiter_pad=None,
+                bookend=False,
                 formats=fmt,
                 delimiter=' ')
 
