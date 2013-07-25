@@ -410,18 +410,24 @@ class FakeReader(BasePhotReader):
         d = np.empty(self.data.shape[0], dtype=np.dtype(dt))
         d['ra'][:] = self.data['fake_ra'][:]
         d['dec'][:] = self.data['fake_dec'][:]
+        fmt = {'ra': '%+10.8f', 'dec': '%+10.7f'}
         for i in xrange(self.nImages):
             mtag = 'mag_%i' % i
             dtag = 'dmag_%i' % i
             d[mtag][:] = self.data['fake_mag'][:, i]  # input magnitude
             d[dtag][:] = self.data['mag'][:, i] - self.data['fake_mag'][:, i]
+            fmt[mtag] = '%+6.3f'
+            fmt[dtag] = '%+6.3f'
             # Find obvious drop-outs
             dropout = np.where(np.abs(d[dtag]) > 10.)[0]
             d[dtag][dropout] = 9.99  # label for StarFISH
         dirname = os.path.dirname(output_path)
         if not os.path.exists(dirname): os.makedirs(dirname)
         t = Table(d)
-        t.write(output_path, format='ascii.no_header', delimiter=' ')
+        t.write(output_path,
+                format='ascii.fixed_width_no_header',
+                formats=fmt,
+                delimiter=' ')
 
     def metrics(self, magRange, n, magErrLim=None, dxLim=None):
         """Makes scalar metrics of artificial stars in an image.
