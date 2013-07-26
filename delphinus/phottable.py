@@ -619,7 +619,6 @@ class DolphotTable(object):
         fileh.close()
         self._open_hdf()
 
-
     def export_ascii(self, path, global_cols=None, image_cols=None,
             colors=None):
         """Export an ASCII table of the dataset, saving it to `path`.
@@ -683,6 +682,52 @@ class DolphotTable(object):
         tbl = Table(cols, names=colnames)
         with open(path, 'w') as f:
             ascii.write(tbl, f)
+
+    def export_for_starfish(self, output_path, xaxis, yaxis):
+        """Create a photometric catalog that can be directly used by
+        StarFISH, a tool for CMD decompositions and star formation history
+        analysis.
+
+        .. todo:: Allow the user to specify an index of stars to select.
+
+        Parameters
+        ----------
+
+        output_path : str
+            Path where the photometry will be saved. In StarFISH terminology,
+            this path should be ``datpre + suffix``.
+        xaxis : int or length-2 tuple
+            Specify the magnitude system of the x-axis in the StarFISH CMD
+            according to indices of filters in the photometry catalog.
+            If ``xaxis`` is an ``int``, then that magnitude is the ``xaxis``.
+            If ``xaxis`` is a tuple, then the x-axis is computed as the
+            difference (colour) of the two indices in the tuple.
+        yaxis : int or tuple
+            Same as ``xaxis``, but for the y-axis.
+        """
+        mags = self.photTable.read(field='mag')
+        if isinstance(xaxis, int):
+            xdata = mags[:, xaxis]
+        else:
+            xdata = mags[:, xaxis[0]] - mags[:, xaxis[1]]
+        if isinstance(yaxis, int):
+            ydata = mags[:, yaxis]
+        else:
+            ydata = mags[:, yaxis[0]] - mags[:, yaxis[1]]
+        nstars = len(xdata)
+        dt = [('xaxis', np.float), ('yaxis', np.float)]
+        data = np.empty((nstars, 2), dtype=np.dtype(dt))
+        data['xaxis'] = xdata
+        data['yaxis'] = ydata
+        dirname = os.path.dirname(output_path)
+        if not os.path.exists(dirname): os.makedirs(dirname)
+        t = Table(data)
+        t.write(output_path,
+                format='ascii.fixed_width_no_header',
+                delimiter_pad=None,
+                bookend=False,
+                formats={'xaxis': "%6.3f", 'yaxis': "%6.3f"},
+                delimiter=' ')
 
 
 if __name__ == '__main__':
