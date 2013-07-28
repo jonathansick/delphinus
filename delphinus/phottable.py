@@ -683,7 +683,8 @@ class DolphotTable(object):
         with open(path, 'w') as f:
             ascii.write(tbl, f)
 
-    def export_for_starfish(self, output_path, xaxis, yaxis):
+    def export_for_starfish(self, output_path, xaxis, yaxis,
+            xspan, yspan):
         """Create a photometric catalog that can be directly used by
         StarFISH, a tool for CMD decompositions and star formation history
         analysis.
@@ -704,6 +705,11 @@ class DolphotTable(object):
             difference (colour) of the two indices in the tuple.
         yaxis : int or tuple
             Same as ``xaxis``, but for the y-axis.
+        xspan : tuple
+            Span of stellar magnitudes on the x-axis that will be exported.
+            This must match the span of the CMD space being used by StarFISH.
+        yspan : tuple
+            Span of stellar magnitudes on the y-axis that will be exported.
         """
         mags = self.photTable.read(field='mag')
         if isinstance(xaxis, int):
@@ -714,6 +720,11 @@ class DolphotTable(object):
             ydata = mags[:, yaxis]
         else:
             ydata = mags[:, yaxis[0]] - mags[:, yaxis[1]]
+        # Filter stars that appear in CMD plane
+        sel = np.where((xdata > min(xspan)) & (xdata < max(xspan))
+                (ydata > min(yspan)) & (ydata < max(yspan)))[0]
+        xdata = xdata[sel]
+        ydata = ydata[sel]
         nstars = len(xdata)
         dt = [('xaxis', np.float), ('yaxis', np.float)]
         data = np.empty((nstars, 2), dtype=np.dtype(dt))
