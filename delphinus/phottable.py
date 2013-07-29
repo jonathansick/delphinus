@@ -722,12 +722,12 @@ class DolphotTable(object):
             ydata = mags[:, yaxis[0]] - mags[:, yaxis[1]]
         # Filter stars that appear in CMD plane
         sel = np.where((xdata > min(xspan)) & (xdata < max(xspan))
-                (ydata > min(yspan)) & (ydata < max(yspan)))[0]
+                & (ydata > min(yspan)) & (ydata < max(yspan)))[0]
         xdata = xdata[sel]
         ydata = ydata[sel]
         nstars = len(xdata)
         dt = [('xaxis', np.float), ('yaxis', np.float)]
-        data = np.empty((nstars, 2), dtype=np.dtype(dt))
+        data = np.empty(nstars, dtype=np.dtype(dt))
         data['xaxis'] = xdata
         data['yaxis'] = ydata
         dirname = os.path.dirname(output_path)
