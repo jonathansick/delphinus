@@ -684,7 +684,7 @@ class DolphotTable(object):
             ascii.write(tbl, f)
 
     def export_for_starfish(self, output_path, xaxis, yaxis,
-            xspan, yspan):
+            xspan, yspan, sel=None):
         """Create a photometric catalog that can be directly used by
         StarFISH, a tool for CMD decompositions and star formation history
         analysis.
@@ -710,21 +710,38 @@ class DolphotTable(object):
             This must match the span of the CMD space being used by StarFISH.
         yspan : tuple
             Span of stellar magnitudes on the y-axis that will be exported.
+        sel : ndarray
+            Index into the photometry table, giving indices of stars
+            to select (include in the export). If left as `None`, then
+            only the default selections for location on the CMD will be
+            made.
         """
         mags = self.photTable.read(field='mag')
         if isinstance(xaxis, int):
-            xdata = mags[:, xaxis]
+            if sel is None:
+                xdata = mags[:, xaxis]
+            else:
+                xdata = mags[sel, xaxis]
         else:
-            xdata = mags[:, xaxis[0]] - mags[:, xaxis[1]]
+            if sel is None:
+                xdata = mags[:, xaxis[0]] - mags[:, xaxis[1]]
+            else:
+                xdata = mags[sel, xaxis[0]] - mags[sel, xaxis[1]]
         if isinstance(yaxis, int):
-            ydata = mags[:, yaxis]
+            if sel is None:
+                ydata = mags[:, yaxis]
+            else:
+                ydata = mags[sel, yaxis]
         else:
-            ydata = mags[:, yaxis[0]] - mags[:, yaxis[1]]
+            if sel is None:
+                ydata = mags[:, yaxis[0]] - mags[:, yaxis[1]]
+            else:
+                ydata = mags[sel, yaxis[0]] - mags[sel, yaxis[1]]
         # Filter stars that appear in CMD plane
-        sel = np.where((xdata > min(xspan)) & (xdata < max(xspan))
+        s = np.where((xdata > min(xspan)) & (xdata < max(xspan))
                 & (ydata > min(yspan)) & (ydata < max(yspan)))[0]
-        xdata = xdata[sel]
-        ydata = ydata[sel]
+        xdata = xdata[s]
+        ydata = ydata[s]
         nstars = len(xdata)
         dt = [('xaxis', np.float), ('yaxis', np.float)]
         data = np.empty(nstars, dtype=np.dtype(dt))
