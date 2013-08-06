@@ -394,7 +394,8 @@ class FakeReader(BasePhotReader):
             recovered[magErr > mag_err_lim] = 0
         return recovered
 
-    def export_for_starfish(self, output_path):
+    def export_for_starfish(self, output_path, round_lim=None, sharp_lim=None,
+            crowd_lim=None):
         """Export artificial star test data for the StarFISH `synth` command.
 
         Parameters
@@ -421,6 +422,21 @@ class FakeReader(BasePhotReader):
             # Find obvious drop-outs
             dropout = np.where(np.abs(d[dtag]) > 10.)[0]
             d[dtag][dropout] = 9.99  # label for StarFISH
+        # Apply quality selection criteria wrt each image, sequentially
+        for i in xrange(self.nImages):
+            dtag = 'dmag_%i' % i
+            if round_lim is not None:
+                s = np.where((self.data['round'][:, i] < min(round_lim[i]))
+                    | (self.data['round'][:, i] > max(round_lim[i])))[0]
+                d[dtag][s] = 9.99
+            if sharp_lim is not None:
+                s = np.where((self.data['sharp'][:, i] < min(sharp_lim[i]))
+                    | (self.data['sharp'][:, i] > max(sharp_lim[i])))[0]
+                d[dtag][s] = 9.99
+            if crowd_lim is not None:
+                s = np.where((self.data['crowding'][:, i] < min(crowd_lim[i]))
+                    | (self.data['crowding'][:, i] > max(crowd_lim[i])))[0]
+                d[dtag][s] = 9.99
         dirname = os.path.dirname(output_path)
         if not os.path.exists(dirname): os.makedirs(dirname)
         t = Table(d)
@@ -719,8 +735,8 @@ class DolphotTable(object):
             number of magnitudes.
         """
         mags = self.photTable.read(field='mag')
-        nmags = mags.shape[0]
-        for i in xrange(nmags):  # apply aperture corrections
+        nimages = len(self.image_bands)
+        for i in xrange(nimages):  # apply aperture corrections
             mags[:, i] += apcor[i]
         if isinstance(xaxis, int):
             if sel is None:
