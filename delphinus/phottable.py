@@ -684,12 +684,10 @@ class DolphotTable(object):
             ascii.write(tbl, f)
 
     def export_for_starfish(self, output_path, xaxis, yaxis,
-            xspan, yspan, sel=None):
+            xspan, yspan, sel=None, apcor=None):
         """Create a photometric catalog that can be directly used by
         StarFISH, a tool for CMD decompositions and star formation history
         analysis.
-
-        .. todo:: Allow the user to specify an index of stars to select.
 
         Parameters
         ----------
@@ -715,8 +713,15 @@ class DolphotTable(object):
             to select (include in the export). If left as `None`, then
             only the default selections for location on the CMD will be
             made.
+        apcor : ndarray
+            Aperture corrections that will be *added* to the instrumental
+            magnitudes during export. ``apcor`` should be the length of the
+            number of magnitudes.
         """
         mags = self.photTable.read(field='mag')
+        nmags = mags.shape[0]
+        for i in xrange(nmags):  # apply aperture corrections
+            mags[:, i] += apcor[i]
         if isinstance(xaxis, int):
             if sel is None:
                 xdata = mags[:, xaxis]
