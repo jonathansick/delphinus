@@ -28,7 +28,7 @@ pip-log.txt
 nosetests.xml
 
 delphinus/version.py
-delphinus/delphinus.cfg
+delphinus/cython_version.py
 
 docs/_build
 docs/_generated
