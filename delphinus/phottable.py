@@ -538,6 +538,12 @@ class DolphotTable(object):
         return self.photTable.attrs.image_keys
 
     @property
+    def read(self):
+        """Return the photTable.read method for the pytables photometry table.
+        """
+        return self.photTable.read
+
+    @property
     def image_bands(self):
         """List of image bandpasses, ordered with :meth:`self.image_paths`."""
         return self.photTable.attrs.image_bands
