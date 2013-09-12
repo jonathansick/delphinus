@@ -567,8 +567,6 @@ class DolphotTable(object):
         The procedure for adding columns to pytables tables is given by
         https://gist.github.com/swarbhanu/1405074
         """
-        # TODO handle case of existing column
-
         self.hdf.close()
 
         # Open it again in append mode
@@ -576,8 +574,17 @@ class DolphotTable(object):
         # group = fileh.root.tmp_phottable
         table = fileh.root.phot
 
-        # Get a description of table in dictionary format
+        # handle case of existing column
         descr = table.description._v_colObjects
+        if colname in descr:
+            print "column %s already exists in table" % colname
+            getattr(table.cols, colname)[:] = coldata
+            table.flush()
+            fileh.close()
+            self._open_hdf()
+            return None
+
+        # Get a description of table in dictionary format
         descr2 = descr.copy()
 
         # Add a column to description
