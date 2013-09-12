@@ -128,7 +128,7 @@ class ASTReducer(object):
         self._f = fakeReader
         self._p = photTable
 
-    def compute_errors(self, mag_err_lim=None, dx_lim=None):
+    def compute_errors(self, mag_err_lim=None, dx_lim=None, qcfunc=None):
         """Estimates errors and completeness per star.
         
         Load photometry from fake table (from same chip, ext as primary data.
@@ -147,9 +147,13 @@ class ASTReducer(object):
         dx_lim : float
             Maximum distance between a fake star's input site and its
             observed site for the fake star to be considered recovered.
+        qcfunc :
+            Callback function for applying quality cuts while assessing
+            completeness.
         """
         mag_errors = self._f.mag_errors()  # diffs nstars x nimages
-        recovered = self._f.recovered(mag_err_lim=mag_err_lim, dx_lim=dx_lim)
+        recovered = self._f.recovered(mag_err_lim=mag_err_lim, dx_lim=dx_lim,
+                qcfunc=qcfunc)
         tree = KDTree(self._f.data['mag'])
         obs_mags = np.array([row['mag']
             for row in self._p.photTable.iterrows()])
@@ -179,7 +183,8 @@ class ASTReducer(object):
         # insert completeness for this star
         self._p.add_column("comp", comps)
 
-    def completeness_limits(self, frac=0.5, mag_err_lim=None, dx_lim=None):
+    def completeness_limits(self, frac=0.5, mag_err_lim=None, dx_lim=None,
+            qcfunc=None):
         """Compute the completeness limit for each image. The magnitude at
         the completeness limit is saved as a an attribute to the phot table
         in the HDF5 file.
@@ -196,8 +201,11 @@ class ASTReducer(object):
         dx_lim : float
             Maximum distance between a fake star's input site and its
             observed site for the fake star to be considered recovered.
+        qcfunc :
+            Callback function for applying quality cuts while assessing
+            completeness.
         """
         comps = self._f.completeness_limits(mag_err_lim=mag_err_lim,
-                dx_lim=dx_lim)
+                dx_lim=dx_lim, qcfunc=qcfunc)
         self._p.set_metadata("completeness", comps)
         return comps

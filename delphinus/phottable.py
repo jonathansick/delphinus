@@ -227,7 +227,7 @@ class FakeReader(BasePhotReader):
         return fakeMag, dx
 
     def completeness(self, n, mag_err_lim=None, dx_lim=None,
-            frac=0.5, dmag=0.1):
+            frac=0.5, dmag=0.1, qcfunc=None):
         """Returns magnitude vs completeness fraction for the given image.
 
         Parameters
@@ -247,9 +247,12 @@ class FakeReader(BasePhotReader):
         dmag : float
             Bin width (magnitudes) in histogram when establishing completeness
             per bin.
+        qcfunc :
+            Callback function for applying quality cuts while assessing
+            completeness.
         """
         recovered = self.recovered_in_image(n, mag_err_lim=mag_err_lim,
-                dx_lim=dx_lim)
+                dx_lim=dx_lim, qcfunc=qcfunc)
         if self.nImages > 1:
             fakeMag = self.data['fake_mag'][:, n]
         else:
@@ -262,7 +265,7 @@ class FakeReader(BasePhotReader):
         return bins, comp[1:]
 
     def completeness_limits(self, mag_err_lim=None, dx_lim=None,
-            frac=0.5, dmag=0.1):
+            frac=0.5, dmag=0.1, qcfunc=None):
         """Compute the completeness limit against each image.
         Returns a list of completeness limits corresponding to each image.
 
@@ -281,17 +284,20 @@ class FakeReader(BasePhotReader):
         dmag : float
             Bin width (magnitudes) in histogram when establishing completeness
             per bin.
+        qcfunc :
+            Callback function for applying quality cuts while assessing
+            completeness.
         """
         comps = []
         for n in xrange(self.nImages):
             c = self.completeness_limit_for_image(n,
                     mag_err_lim=mag_err_lim, dx_lim=dx_lim,
-                    frac=frac, dmag=dmag)
+                    frac=frac, dmag=dmag, qcfunc=qcfunc)
             comps.append(c)
         return comps
 
     def completeness_limit_for_image(self, n, mag_err_lim=None, dx_lim=None,
-            frac=0.5, dmag=0.1):
+            frac=0.5, dmag=0.1, qcfunc=None):
         """Compute the completeness limit against each a single image.
         
         Parameters
@@ -311,9 +317,13 @@ class FakeReader(BasePhotReader):
         dmag : float
             Bin width (magnitudes) in histogram when establishing completeness
             per bin.
+        qcfunc :
+            Callback function for applying quality cuts while assessing
+            completeness.
         """
         bins, comp = self.completeness(n,
-                mag_err_lim=mag_err_lim, dx_lim=dx_lim, dmag=dmag)
+                mag_err_lim=mag_err_lim, dx_lim=dx_lim, dmag=dmag,
+                qcfunc=qcfunc)
         # Solve where completeness crosses the threshold
         # TODO this could be made a lot smarter (i.e., ensure completeess
         # is declining; interpolate between bins; smooth)
@@ -321,7 +331,7 @@ class FakeReader(BasePhotReader):
         i = np.argmin((comp[msk] - frac) ** 2.)
         return bins[i]
 
-    def recovered(self, mag_err_lim=None, dx_lim=None):
+    def recovered(self, mag_err_lim=None, dx_lim=None, qcfunc=None):
         """Generates a boolean array indicating if each star is recovered or
         not. This effectively is a boolean AND of results from
         :meth:`recovered_in_image`.
@@ -342,20 +352,24 @@ class FakeReader(BasePhotReader):
         dx_lim : float
             Maximum distance between a fake star's input site and its
             observed site for the fake star to be considered recovered.
+        qcfunc :
+            Callback function for applying quality cuts while assessing
+            completeness.
         """
         if self.nImages > 1:
             recoveryArrays = [self.recovered_in_image(0,
-                    mag_err_lim=mag_err_lim, dx_lim=dx_lim)
+                    mag_err_lim=mag_err_lim, dx_lim=dx_lim, qcfunc=qcfunc)
                     for i in xrange(self.nImages)]
             rec = recoveryArrays[0]
             for r in recoveryArrays[1:]:
                 rec = rec & r
             return rec
         else:
-            return self.recovered_in_images(0,
-                    mag_err_lim=mag_err_lim, dx_lim=dx_lim)
+            return self.recovered_in_image(0,
+                    mag_err_lim=mag_err_lim, dx_lim=dx_lim, qcfunc=qcfunc)
 
-    def recovered_in_image(self, n, mag_err_lim=None, dx_lim=None):
+    def recovered_in_image(self, n, mag_err_lim=None, dx_lim=None,
+            qcfunc=None):
         """Generates a boolean array indicating if each star is recovered in
         the given image (`n`) or not.
 
@@ -377,6 +391,9 @@ class FakeReader(BasePhotReader):
         dx_lim : float
             Maximum distance between a fake star's input site and its
             observed site for the fake star to be considered recovered.
+        qcfunc :
+            Callback function for applying quality cuts while assessing
+            completeness.
         """
         if dx_lim is not None:
             k, dx = self.position_errors()
@@ -387,6 +404,9 @@ class FakeReader(BasePhotReader):
             fakeMag = self.data['fake_mag']
             obsMag = self.data['mag']
         recovered = np.ones(self.data.shape[0], dtype=np.bool)
+        if qcfunc is not None:  # apply quality control callback
+            sel = qcfunc(self.data, n)
+            recovered = recovered & sel
         if dx_lim is not None:
             recovered[dx > dx_lim] = 0
         if mag_err_lim is not None:
@@ -395,7 +415,7 @@ class FakeReader(BasePhotReader):
         return recovered
 
     def export_for_starfish(self, output_path, round_lim=None, sharp_lim=None,
-            crowd_lim=None):
+            crowd_lim=None, qcfunc=None):
         """Export artificial star test data for the StarFISH `synth` command.
 
         Parameters
@@ -403,6 +423,9 @@ class FakeReader(BasePhotReader):
 
         output_path : str
             Path where crowding table will be written.
+        qcfunc :
+            Callback function for applying quality cuts while assessing
+            completeness.
         """
         dt = [('ra', np.float), ('dec', np.float)]
         for i in xrange(self.nImages):
@@ -437,6 +460,9 @@ class FakeReader(BasePhotReader):
                 s = np.where((self.data['crowding'][:, i] < min(crowd_lim[i]))
                     | (self.data['crowding'][:, i] > max(crowd_lim[i])))[0]
                 d[dtag][s] = 9.99
+            if qcfunc is not None:
+                s = qcfunc(self.data, i)
+                d[dtag][s] = 9.99
         dirname = os.path.dirname(output_path)
         if not os.path.exists(dirname): os.makedirs(dirname)
         t = Table(d)
@@ -451,6 +477,8 @@ class FakeReader(BasePhotReader):
         """Makes scalar metrics of artificial stars in an image.
         
         For each image, results a tuple (RMS mag error, completeness fraction).
+
+        TODO deprecated. Replace with other methods.
         """
         if dxLim is not None:
             k, dx = self.position_errors()
