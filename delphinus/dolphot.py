@@ -14,7 +14,8 @@ import shutil
 import time
 import subprocess
 
-from phottable import DolphotTable
+from .table import PhotTable
+from .table import FakeTable
 
 
 class Dolphot(object):
@@ -26,8 +27,7 @@ class Dolphot(object):
 
     Parameters
     ----------
-
-    workDir : str
+    work_dir : str
         Work directory for photometry
     **params : kwargs
         Parameters general to a run of Dolphot. Image-specific parameters are
@@ -35,46 +35,45 @@ class Dolphot(object):
     
     Attributes
     ----------
-
     images : list
         List of dictionaries for images being photometered. Has fields for
         parameters, etc, associated with each photometered image
-    referenceImage : dict
+    ref_image : dict
         Parameter info for reference image. Has fields `path` and `params`.
         Set to None if no reference image is being used
     params : dict
         General parameters (those not specific to images)
-    workDir : str
+    work_dir : str
         Work directory for photometry
-    outputName : str
+    output_name : str
         Base name of the output files. Created when calling :meth:`run`.
-    apcorPath : str
-        Path to the aperture correction data file
-    columnsPath : str
-        Path to the columns definition file
-    infoPath : str
-        Path to the info file
-    psfsPath : str
-        Path to the psfs file
-    tablePath : str
-        Path to the HDF5 table, if it it create. `None` otherwise.
+    exec_time : float
+        Execution time (seconds) of most recent Dolphot run.
+    param_path : str
+        Path of most recently written Dolphot parameters file.
+    fake_path : str
+        Path to .fake output file.
     """
-    def __init__(self, workDir, **params):
+    def __init__(self, work_dir, **params):
         self.images = []
-        self.referenceImage = None
-        self.params = params
-        if os.path.exists(workDir) is False:
-            os.makedirs(workDir)
-        self.workDir = workDir
-        self.execTime = None
-        self.tablePath = None
+        self.ref_image = None
+        self.params = dict(params)
+        if os.path.exists(work_dir) is False:
+            os.makedirs(work_dir)
+        self.work_dir = work_dir
+        self.exec_time = None
+        self.patam_path = None
+        self.fake_path = None
 
-    def add_image(self, imagePath, key=None, band=None, **params):
+        self._phot_table = None  # PhotTable of current Dolphot run
+        self._fake_table = None  # FakeTable of current Dolphot run
+
+    def add_image(self, image_path, key=None, band=None, **params):
         """Add an image to the set to be photometered.
         
         Parameters
         ----------
-        imagePath : str
+        image_path : str
             Full path to the FITS file to be photomered. MEF or single
             extension fits are valid.
         key : str
@@ -90,63 +89,60 @@ class Dolphot(object):
             of :meth:`DolphotParameters.setup_image`.
         """
         if key is None:
-            key = os.path.splitext(os.path.basename(imagePath))[0]
+            key = os.path.splitext(os.path.basename(image_path))[0]
         if band is None:
             band = 'None'
-        self.images.append({"path": imagePath, "image_key": key,
-            "params": params, "band": band})
+        self.images.append({"path": image_path, "image_key": key,
+            "params": dict(params), "band": band})
     
-    def add_reference(self, imagePath, **params):
+    def add_reference(self, image_path, **params):
         """Add an image to the set to be photometered.
         
         Parameters
         ----------
-        imagePath : str
+        image_path : str
             Full path to the FITS file to be photomered. MEF or single
             extension fits are valid.
         **params : dict
             Parameters to be passed for this image. See parameter listing
             of :meth:`DolphotParameters.setup_image`.
         """
-        self.referenceImage = {"path": imagePath, "params": params}
+        self.ref_image = {"path": image_path, "params": dict(params)}
 
     def change_param(self, key, param):
         """Change or add a single parameter. These must be general parameters.
         """
         self.params[key] = param
 
-    def write_parameters(self, outputName, fullPath=False):
+    def write_parameters(self, output_name, full_path=False):
         """Write parameters to a .params file for DOLPHOT. This method is
         automatically called by :meth:`run`.
         """
-        dolphotParams = DolphotParameters(**self.params)
+        dol_params = DolphotParameters(**self.params)
         for doc in self.images:
-            path = doc['path']
-            imParams = doc['params']
-            dolphotParams.setup_image(path, ref=False, **imParams)
-        if self.referenceImage is not None:
-            refPath = self.referenceImage['path']
-            refParams = self.referenceImage['params']
-            dolphotParams.setup_image(refPath, ref=True, **refParams)
-        if not fullPath:
-            self.paramPath = os.path.join(self.workDir, outputName + ".params")
+            dol_params.setup_image(doc['path'], ref=False, **doc['params'])
+        if self.ref_image is not None:
+            dol_params.setup_image(self.ref_image['path'], ref=True,
+                    **self.ref_image['params'])
+        if not full_path:
+            self.param_path = os.path.join(self.work_dir,
+                    output_name + ".params")
         else:
-            self.paramPath = outputName
-        dolphotParams.write_parameters(self.paramPath)
+            self.param_path = output_name
+        dol_params.write_parameters(self.param_path)
 
-    def run(self, outputName, clean=True):
+    def run(self, output_name, clean=True):
         """Run dolphot photometry given the parameter settings."""
-        outputPath = os.path.join(self.workDir, outputName)
-        self.write_parameters(outputName)
-        command = "dolphot %s -p%s" % (outputPath, self.paramPath)
+        self.output_name = output_name
+        output_path = os.path.join(self.work_dir, output_name)
+        self.write_parameters(output_name)
+        command = "dolphot %s -p%s" % (output_path, self.param_path)
         with Timer() as t:
             subprocess.call(command, shell=True)
-        self.execTime = t.interval
-        # Define paths to dolphot outputs
-        self.outputName = outputName
-        self._define_output_paths(self.outputName)
+        self.exec_time = t.interval
+        self._phot_table = None  # reset
 
-    def run_ast(self, outputName, starListName):
+    def run_ast(self, output_name, starlist_name):
         """Run dolphot photometry in artificial star test mode.
         
         This method differs from :meth:`run` in that it will create a
@@ -154,65 +150,91 @@ class Dolphot(object):
         can be simultaneously run on a single input photometry. That is,
         this method prevents the AST output of one star list from clobbering
         that of another.
-
-        .. note:: This method may be deprecated.
         """
-        astDir = os.path.join(self.workDir,
-                "%s_%s" % (outputName, starListName))
-        if not os.path.exists(astDir): os.makedirs(astDir)
-        self._define_output_paths(outputName)
-        # Symlink outputs into astDir
-        _apcorPath = os.path.join(astDir, outputName + ".apcor")
-        _columnsPath = os.path.join(astDir, outputName + ".columns")
-        _infoPath = os.path.join(astDir, outputName + ".info")
-        _psfsPath = os.path.join(astDir, outputName + ".psfs")
-        _fakePath = os.path.join(astDir, outputName + ".fake")
-        _photPath = os.path.join(astDir, outputName)
-        os.symlink(self.apcorPath, _apcorPath)
-        os.symlink(self.infoPath, _infoPath)
-        os.symlink(self.columnsPath, _columnsPath)
-        os.symlink(self.psfsPath, _psfsPath)
-        os.symlink(self.photPath, _photPath)
+        self.output_name = output_name
+        ast_dir = os.path.join(self.work_dir,
+                "%s_%s" % (output_name, starlist_name))
+        if not os.path.exists(ast_dir):
+            os.makedirs(ast_dir)
+        # Symlink outputs into ast_dir
+        _apcor_path = os.path.join(ast_dir, output_name + ".apcor")
+        _cols_path = os.path.join(ast_dir, output_name + ".columns")
+        _info_path = os.path.join(ast_dir, output_name + ".info")
+        _psfs_path = os.path.join(ast_dir, output_name + ".psfs")
+        _fake_path = os.path.join(ast_dir, output_name + ".fake")
+        _phot_path = os.path.join(ast_dir, output_name)
+        os.symlink(self.apcor_path, _apcor_path)
+        os.symlink(self.info_path, _info_path)
+        os.symlink(self.columns_path, _cols_path)
+        os.symlink(self.psfs_path, _psfs_path)
+        os.symlink(self.phot_path, _phot_path)
         # Run photometry
-        self.write_parameters(os.path.join(astDir, outputName + ".params"),
-            fullPath=True)
-        outputPath = os.path.join(astDir, outputName)
-        command = "dolphot %s -p%s" % (outputPath, self.paramPath)
+        self.write_parameters(os.path.join(ast_dir, output_name + ".params"),
+            full_path=True)
+        outputPath = os.path.join(ast_dir, output_name)
+        command = "dolphot %s -p%s" % (outputPath, self.param_path)
         with Timer() as t:
             subprocess.call(command, shell=True)
-        self.execTime = t.interval
+        self.exec_time = t.interval
         # Move AST result back to main directory, labeled with star list name
-        self.fakePath = os.path.join(self.workDir,
-                "%s_%s.fake" % (outputName, starListName))
-        if os.path.exists(self.fakePath): os.remove(self.fakePath)
-        shutil.move(_fakePath, self.fakePath)
+        self.fake_path = os.path.join(self.work_dir,
+                "%s_%s.fake" % (output_name, starlist_name))
+        if os.path.exists(self.fake_path):
+            os.remove(self.fake_path)
+        shutil.move(_fake_path, self.fake_path)
         # Delete AST dir
-        shutil.rmtree(astDir)
+        shutil.rmtree(ast_dir)
+        self._fake_table = None  # reset
 
-    def _define_output_paths(self, outputName):
-        """Define paths to the dolphot outputs"""
-        self.apcorPath = os.path.join(self.workDir, outputName + ".apcor")
-        self.columnsPath = os.path.join(self.workDir, outputName + ".columns")
-        self.infoPath = os.path.join(self.workDir, outputName + ".info")
-        self.psfsPath = os.path.join(self.workDir, outputName + ".psfs")
-        self.fakePath = os.path.join(self.workDir, outputName + ".fake")
-        self.warnPath = os.path.join(self.workDir, outputName + ".warnings")
-        self.photPath = os.path.join(self.workDir, outputName)
-        # path list for psf fits files
-        self.psf_fits_paths = [os.path.join(self.workDir,
-            outputName + ".%i.psf.fits" % n)
+    @property
+    def phot_path(self):
+        """Path to Dolphot photometry output table."""
+        return os.path.join(self.work_dir, self.output_name)
+
+    @property
+    def apcor_path(self):
+        """Path to .apcor output file."""
+        return os.path.join(self.work_dir, self.output_name + ".apcor")
+
+    @property
+    def columns_path(self):
+        """Path to .columns output file."""
+        return os.path.join(self.work_dir, self.output_name + ".columns")
+
+    @property
+    def info_path(self):
+        """Path to .info output file."""
+        return os.path.join(self.work_dir, self.output_name + ".info")
+
+    @property
+    def psfs_path(self):
+        """Path to .psfs output file."""
+        return os.path.join(self.work_dir, self.output_name + ".psfs")
+
+    @property
+    def warnings_path(self):
+        """Path to .warnings output file."""
+        return os.path.join(self.work_dir, self.output_name + ".warnings")
+
+    @property
+    def psf_fits_paths(self):
+        """Path list of PSF FITS files."""
+        return [os.path.join(self.work_dir,
+            self.output_name + ".%i.psf.fits" % n)
             for n in xrange(1, len(self.images) + 1)]
-        # path list for resdiaul fits files
-        self.res_fits_paths = [os.path.join(self.workDir,
-            outputName + ".%i.res.fits" % n)
+
+    @property
+    def res_fits_paths(self):
+        """Paths to residual FITS files."""
+        self.res_fits_paths = [os.path.join(self.work_dir,
+            self.output_name + ".%i.res.fits" % n)
             for n in xrange(1, len(self.images) + 1)]
-        self.outputName = outputName
 
     def label_fake_output(self, label):
         """Renames artificial star test output (useful it running multiple
         fake star lists on the same photometry)."""
-        newPath = os.path.join(self.workDir,
-                "%s_%s.fake" % (self.outputName, label))
+        newPath = os.path.join(self.work_dir,
+                "%s_%s.fake" % (self.output_name, label))
         if newPath == self.fakePath:
             return
         if os.path.exists(newPath):
@@ -221,15 +243,46 @@ class Dolphot(object):
         shutil.move(self.fakePath, newPath)
         self.fakePath = newPath
 
-    def compile_hdf5(self, tablePath=None):
-        """Make an HDF5 file of the photometric output."""
-        if tablePath is None:
-            tablePath = os.path.join(self.workDir, self.outputName + ".h5")
-        dolphotTable = DolphotTable.make(tablePath, self.images,
-                self.referenceImage, self.photPath, self.psfsPath,
-                self.apcorPath, execTime=self.execTime)
-        self.tablePath = tablePath
-        return dolphotTable
+    @property
+    def phot_table(self):
+        """A PhotTable with the current results."""
+        if self._phot_table is None:
+            image_names = [im['image_key'] for im in self.images]
+            bands = [im['band'] for im in self.images]
+            if self.ref_image is not None:
+                ref_image_path = self.ref_image['path']
+            else:
+                ref_image_path = self.images[0]['path']
+            meta = {'apcor': self.apcor_path, 'info': self.info_path,
+                    'psfs_fits_path': self.psf_fits_paths,
+                    'res_fits_paths': self.res_fits_paths,
+                    'exec_time': self.exec_time}
+            self._phot_table = PhotTable.read_phot(self.phot_path,
+                    n_images=len(self.images),
+                    image_names=image_names,
+                    bands=bands,
+                    fits_path=ref_image_path,
+                    meta=meta)
+        return self._phot_table
+
+    @property
+    def fake_table(self):
+        """A FakeTable with the current results."""
+        if self._fake_table is None and self.fake_path is not None:
+            image_names = [im['image_key'] for im in self.images]
+            bands = [im['band'] for im in self.images]
+            if self.ref_image is not None:
+                ref_image_path = self.ref_image['path']
+            else:
+                ref_image_path = self.images[0]['path']
+            meta = {'exec_time': self.exec_time}
+            self._fake_table = FakeTable.read_phot(self.fake_path,
+                    n_images=len(self.images),
+                    image_names=image_names,
+                    bands=bands,
+                    fits_path=ref_image_path,
+                    meta=meta)
+        return self.self._fake_table
 
 
 class DolphotParameters(object):
@@ -620,52 +673,3 @@ class Timer:
     def __exit__(self, *args):
         self.end = time.time()
         self.interval = self.end - self.start
-
-
-"""
-1. Extension (zero for base image)
-2. Chip (for three-dimensional FITS image)
-3. Object X position on reference image (or first image, if no reference)
-4. Object Y position on reference image (or first image, if no reference)
-5. Chi for fit
-6. Signal-to-noise
-7. Object sharpness
-8. Object roundness
-9. Direction of major axis (if not round)
-10. Crowding
-11. Object type (1=bright star, 2=faint, 3=elongated, 4=hot pixel, 5=extended)
-12. Measured counts, image 1
-13. Measured sky level, image 1
-14. Normalized count rate, image 1
-15. Normalized count rate uncertainty, image 1
-16. Instrumental magnitude, image 1
-17. Magnitude uncertainty, image 1
-18. Chi, image 1
-19. Signal-to-noise, image 1
-20. Sharpness, image 1
-21. Roundness, image 1
-22. Crowding, image 1
-23. PSF FWHM, image 1
-24. PSF eccentricity, image 1
-25. PSF a parameter, image 1
-26. PSF b parameter, image 1
-27. PSF c parameter, image 1
-28. Photometry quality flag, image 1
-29. Measured counts, image 2
-30. Measured sky level, image 2
-31. Normalized count rate, image 2
-32. Normalized count rate uncertainty, image 2
-33. Instrumental magnitude, image 2
-34. Magnitude uncertainty, image 2
-35. Chi, image 2
-36. Signal-to-noise, image 2
-37. Sharpness, image 2
-38. Roundness, image 2
-39. Crowding, image 2
-40. PSF FWHM, image 2
-41. PSF eccentricity, image 2
-42. PSF a parameter, image 2
-43. PSF b parameter, image 2
-44. PSF c parameter, image 2
-45. Photometry quality flag, image 2
-"""
