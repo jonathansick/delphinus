@@ -3,9 +3,17 @@
 """
 Tests fo the PhotTable class.
 """
-from astropy.utils.data import download_file
+import os
+
+# from astropy.utils.data import download_file
+import astropy.table
 
 from delphinus import PhotTable, FakeTable
+
+PHOTPATH = None
+FITSPATH = None
+AST1 = None
+AST2 = None
 
 
 def setup_module(module):
@@ -29,6 +37,7 @@ def setup_module(module):
 
 
 class TestPhotTable(object):
+    h5path = "test_phottable.hdf5"
 
     def setup_class(self):
         """Read the phot file."""
@@ -44,6 +53,10 @@ class TestPhotTable(object):
                 bands=['J', 'Ks'],
                 fits_path=FITSPATH)
 
+    def teardown_class(self):
+        if os.path.exists(self.h5path):
+            os.remove(self.h5path)
+
     def test_nimages(self):
         assert self.phot_table.n_images == 2
 
@@ -54,3 +67,10 @@ class TestPhotTable(object):
         assert "comp" in self.phot_table.keys()
         assert "ast_mag_err_0" in self.phot_table.keys()
         assert "ast_mag_err_1" in self.phot_table.keys()
+
+    def test_read_write_hdf5(self):
+        """docstring for test_read_write_hdf5"""
+        self.phot_table.write(self.h5path, path='phot', format="hdf5")
+        new_table = astropy.table.Table.read(self.h5path, path='phot')
+        # make sure the metadata looks right after I/O through HDF5
+        assert new_table.meta['n_images'] == self.phot_table.n_images
