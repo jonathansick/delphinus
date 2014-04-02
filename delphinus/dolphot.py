@@ -226,7 +226,7 @@ class Dolphot(object):
     @property
     def res_fits_paths(self):
         """Paths to residual FITS files."""
-        self.res_fits_paths = [os.path.join(self.work_dir,
+        return [os.path.join(self.work_dir,
             self.output_name + ".%i.res.fits" % n)
             for n in xrange(1, len(self.images) + 1)]
 
