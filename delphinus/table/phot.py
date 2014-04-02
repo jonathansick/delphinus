@@ -103,24 +103,26 @@ class PhotTable(astropy.table.table.Table):
     @property
     def image_names(self):
         """Names of images."""
-        if 'image_names' in self.meta:
-            return self.meta['image_names']
-        else:
-            return None
+        return self._read_meta('image_names')
 
     @property
     def image_bands(self):
         """Bandpasses of images."""
-        if 'bands' in self.meta:
-            return self.meta['bands']
-        else:
-            return None
+        return self._read_meta('bands')
 
     @property
     def n_images(self):
         """Count the nmber of images in photometry."""
-        if 'n_images' in self.meta:
-            return self.meta['n_images']
+        return self._read_meta('n_images')
+
+    def _read_meta(self, key):
+        """Astropy Table FITS I/O does a weird thing with randomly scambling
+        the case of metadata keywords. This method reads metadata, trying
+        different cases for the keyword."""
+        if key.lower() in self.meta:
+            return self.meta[key.lower()]
+        if key.upper() in self.meta:
+            return self.meta[key.upper()]
         else:
             return None
 
