@@ -67,37 +67,37 @@ class PhotTable(astropy.table.table.Table):
         return instance
 
     @classmethod
-    def _construct_subclass_reader_wrapper(cls,function):
+    def _construct_subclass_reader_wrapper(cls, function):
         def new_function(*args, **kwargs):
             return cls(function(*args, **kwargs))
         if function.__doc__:
             new_function.__doc__ = function.__doc__ \
-                    + "\nWrapped programmatically to return " + cls.__name__
+                + "\nWrapped programmatically to return " + cls.__name__
         return new_function
 
     @classmethod
-    def _register_subclass_io(cls,parent_class=astropy.table.Table):
+    def _register_subclass_io(cls, parent_class=astropy.table.Table):
         reader_registrations = []
-        #Look at all the existing readers and if they are 
-        #registered for the parent class then record the name
-        #and function they use
-        for (name,parent),reader in astropy.io.registry._readers.items():
-            if parent_class==parent:
-                reader_registrations.append((name,reader))
-        #register all those functions for the new class too,
-        #except that we need to wrap the function to return an instance
-        #of our class instead
-        for (name,reader) in reader_registrations:
+        # Look at all the existing readers and if they are
+        # registered for the parent class then record the name
+        # and function they use
+        for (name, parent), reader in astropy.io.registry._readers.items():
+            if parent_class == parent:
+                reader_registrations.append((name, reader))
+        # register all those functions for the new class too,
+        # except that we need to wrap the function to return an instance
+        # of our class instead
+        for (name, reader) in reader_registrations:
             new_reader = cls._construct_subclass_reader_wrapper(reader)
             astropy.io.registry.register_reader(name, cls, new_reader)
-        #Now do exactly the same for the writers, except no wrapping needed
+        # Now do exactly the same for the writers, except no wrapping needed
         writer_registrations = []
-        #Get existing
-        for (name,parent),writer in astropy.io.registry._writers.items():
-            if parent_class==parent:
-                writer_registrations.append((name,writer))
-        #register new
-        for (name,writer) in writer_registrations:
+        # Get existing
+        for (name, parent), writer in astropy.io.registry._writers.items():
+            if parent_class == parent:
+                writer_registrations.append((name, writer))
+        # register new
+        for (name, writer) in writer_registrations:
             astropy.io.registry.register_writer(name, cls, writer)
 
     @property
