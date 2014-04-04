@@ -4,6 +4,7 @@
 Dolphot photometry table reader/writer.
 """
 import os
+import json
 
 import numpy as np
 import astropy.table.table
@@ -63,8 +64,20 @@ class PhotTable(astropy.table.table.Table):
         if bands is not None:
             meta['bands'] = bands
         meta['n_images'] = n_images
+        meta = PhotTable.encode_metadata(meta)
         instance = cls(reader.data, meta=meta)
         return instance
+
+    @staticmethod
+    def encode_metadata(meta):
+        """Encode all lists and tuples as comma-delimeted strings."""
+        for k, val in meta.iteritems():
+            if not isinstance(val, int) or not isinstance(val, float) \
+                    or not isinstance(val, str):
+                meta[k] = json.dumps(val)
+            else:
+                meta[k] = val
+        return meta
 
     @classmethod
     def _construct_subclass_reader_wrapper(cls, function):
@@ -118,13 +131,24 @@ class PhotTable(astropy.table.table.Table):
     def _read_meta(self, key):
         """Astropy Table FITS I/O does a weird thing with randomly scambling
         the case of metadata keywords. This method reads metadata, trying
-        different cases for the keyword."""
+        different cases for the keyword.
+        """
         if key.lower() in self.meta:
-            return self.meta[key.lower()]
+            return self._read_meta_item(self.meta[key.lower()])
         if key.upper() in self.meta:
-            return self.meta[key.upper()]
+            return self._read_meta_item(self.meta[key.upper()])
         else:
             return None
+
+    def _read_meta_item(self, item):
+        """Automatically splits an implied list, if necessary."""
+        try:
+            # works if metadata needed to be encoded in json
+            v = json.loads(item)
+        except ValueError:
+            # works if metadata was not encoded in json
+            v = item
+        return v
 
     def _resolve_index(self, n=None, name=None, band=None):
         """Figure out what image we're talking about."""

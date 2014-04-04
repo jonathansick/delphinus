@@ -60,10 +60,11 @@ class FakeTable(PhotTable):
         else:
             meta = dict(meta)
         if image_names is not None:
-            meta['image_names'] = image_names
+            meta['image_names'] = ",".join(image_names)
         if bands is not None:
-            meta['bands'] = bands
+            meta['bands'] = ",".join(bands)
         meta['n_images'] = n_images
+        meta = PhotTable.encode_metadata(meta)
         instance = cls(reader.data, meta=meta)
         return instance
 
