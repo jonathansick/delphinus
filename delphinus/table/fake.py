@@ -8,6 +8,7 @@ import os
 
 import numpy as np
 import astropy
+import astropy.table
 from astropy.table import Table
 
 from delphinus.table.phot import PhotTable
@@ -101,6 +102,27 @@ class FakeTable(PhotTable):
         # register new
         for (name, writer) in writer_registrations:
             astropy.io.registry.register_writer(name, cls, writer)
+
+    @classmethod
+    def vstack(cls, fake_tables):
+        """Wrapper for astropy.table.vstack that maintains the FakeTable class
+        identity.
+
+        The metadata of the first FakeTable is maintained.
+        
+        Parameters
+        ----------
+        fake_tables : list
+            A sequence of FakeTable instances to concatenate.
+
+        Returns
+        -------
+        fake_table : :class:`FakeTable`
+            A concatenated :class:`FakeTable`.
+        """
+        tbl = astropy.table.vstack(fake_tables)
+        fake_tbl = cls(tbl)
+        return fake_tbl
 
     def mag_errors(self, n=None, name=None, band=None):
         """Compute output-input magnitude difference for AST.
