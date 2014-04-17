@@ -202,12 +202,21 @@ class PhotTable(astropy.table.table.Table):
         """
         comps, sigmas = estimate_errors(self, fake_tbl,
                 mag_err_lim=mag_err_lim, dx_lim=dx_lim, qcfunc=qcfunc)
-        comp_col = Column(name='comp', data=comps)
-        self.add_column(comp_col)
+
+        if 'comp' not in self.colnames:
+            comp_col = Column(name='comp', data=comps)
+            self.add_column(comp_col)
+        else:
+            self['comp'] = comps
+
         for i in xrange(self.n_images):
-            sigma_col = Column(name="ast_mag_err_{0}".format(str(i)),
-                data=sigmas[:, i])
-            self.add_column(sigma_col)
+            colname = "ast_mag_err_{0}".format(str(i))
+            if colname not in self.colnames:
+                sigma_col = Column(name=colname,
+                    data=sigmas[:, i])
+                self.add_column(sigma_col)
+            else:
+                self[colname] = sigmas[:, i]
 
     def export_for_starfish(self, output_path, xaxis, yaxis,
             xspan, yspan, sel=None, apcor=None):
