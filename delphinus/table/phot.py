@@ -124,8 +124,13 @@ class PhotTable(astropy.table.table.Table):
         return self._read_meta('bands')
 
     @property
+    def n_stars(self):
+        """Number of stars."""
+        return len(self)
+
+    @property
     def n_images(self):
-        """Count the nmber of images in photometry."""
+        """Count the number of images in photometry."""
         return self._read_meta('n_images')
 
     def _read_meta(self, key):
