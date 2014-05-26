@@ -141,6 +141,9 @@ class Dolphot(object):
             subprocess.call(command, shell=True)
         self.exec_time = t.interval
         self._phot_table = None  # reset
+        _fake_path = output_path + ".fake"
+        if os.path.exists(_fake_path):
+            self.fake_path = _fake_path
 
     def run_ast(self, output_name, starlist_name):
         """Run dolphot photometry in artificial star test mode.
