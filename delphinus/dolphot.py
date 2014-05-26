@@ -62,7 +62,7 @@ class Dolphot(object):
             os.makedirs(work_dir)
         self.work_dir = work_dir
         self.exec_time = None
-        self.patam_path = None
+        self.param_path = None
         self.fake_path = None
 
         self._phot_table = None  # PhotTable of current Dolphot run
