@@ -235,13 +235,12 @@ class Dolphot(object):
         fake star lists on the same photometry)."""
         newPath = os.path.join(self.work_dir,
                 "%s_%s.fake" % (self.output_name, label))
-        if newPath == self.fakePath:
+        if newPath == self.fake_path:
             return
         if os.path.exists(newPath):
             os.remove(newPath)
-        print self.fakePath, newPath
-        shutil.move(self.fakePath, newPath)
-        self.fakePath = newPath
+        shutil.move(self.fake_path, newPath)
+        self.fake_path = newPath
 
     @property
     def phot_table(self):
