@@ -21,9 +21,9 @@ class PhotTable(astropy.table.table.Table):
 
     @classmethod
     def read_phot(cls, phot_path, n_images=None, image_names=None, bands=None,
-            fits_path=None, meta=None):
+                  fits_path=None, meta=None):
         """Import the Dolphot photometry file as an astropy Table.
-        
+
         Parameters
         ----------
         phot_path : str
@@ -70,7 +70,7 @@ class PhotTable(astropy.table.table.Table):
 
     @staticmethod
     def encode_metadata(meta):
-        """Encode all lists and tuples as comma-delimeted strings."""
+        """Encode all lists and tuples as JSON strings."""
         for k, val in meta.iteritems():
             if not isinstance(val, int) or not isinstance(val, float) \
                     or not isinstance(val, str):
@@ -182,7 +182,7 @@ class PhotTable(astropy.table.table.Table):
         return self[col_name]
 
     def estimate_ast_errors(self, fake_tbl,
-            mag_err_lim=None, dx_lim=None, qcfunc=None):
+                            mag_err_lim=None, dx_lim=None, qcfunc=None):
         """Incorporate artificial star tests for error estimation.
 
         This method adds the following columns to the table:
@@ -190,7 +190,7 @@ class PhotTable(astropy.table.table.Table):
         - `comp`: the completeness probability for each star
         - `ast_mag_err_N`: the magnitude uncertainty in the `N` image (for
           each image).
-        
+
         Parameters
         ----------
         fake_tbl : :class:`delphinus.table.FakeTable`
@@ -205,8 +205,9 @@ class PhotTable(astropy.table.table.Table):
             Callback function for applying quality cuts while assessing
             completeness.
         """
-        comps, sigmas = estimate_errors(self, fake_tbl,
-                mag_err_lim=mag_err_lim, dx_lim=dx_lim, qcfunc=qcfunc)
+        comps, sigmas = estimate_errors(
+            self, fake_tbl,
+            mag_err_lim=mag_err_lim, dx_lim=dx_lim, qcfunc=qcfunc)
 
         if 'comp' not in self.colnames:
             comp_col = Column(name='comp', data=comps)
@@ -218,13 +219,13 @@ class PhotTable(astropy.table.table.Table):
             colname = "ast_mag_err_{0}".format(str(i))
             if colname not in self.colnames:
                 sigma_col = Column(name=colname,
-                    data=sigmas[:, i])
+                                   data=sigmas[:, i])
                 self.add_column(sigma_col)
             else:
                 self[colname] = sigmas[:, i]
 
     def export_for_starfish(self, output_path, xaxis, yaxis,
-            xspan, yspan, sel=None, apcor=None):
+                            xspan, yspan, sel=None, apcor=None):
         """Create a photometric catalog that can be directly used by
         StarFISH, a tool for CMD decompositions and star formation history
         analysis.
@@ -258,7 +259,7 @@ class PhotTable(astropy.table.table.Table):
             number of magnitudes.
         """
         mags = np.column_stack([self.image_col.read('mag', n)
-            for n in xrange(self.n_images)])
+                                for n in xrange(self.n_images)])
         for i in xrange(self.n_images):  # apply aperture corrections
             mags[:, i] += apcor[i]
         if isinstance(xaxis, int):
@@ -282,8 +283,9 @@ class PhotTable(astropy.table.table.Table):
             else:
                 ydata = mags[sel, yaxis[0]] - mags[sel, yaxis[1]]
         # Filter stars that appear in CMD plane
-        s = np.where((xdata > min(xspan)) & (xdata < max(xspan))
-                & (ydata > min(yspan)) & (ydata < max(yspan)))[0]
+        s = np.where(
+            (xdata > min(xspan)) & (xdata < max(xspan))
+            & (ydata > min(yspan)) & (ydata < max(yspan)))[0]
         xdata = xdata[s]
         ydata = ydata[s]
         nstars = len(xdata)
