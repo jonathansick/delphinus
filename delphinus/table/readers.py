@@ -16,10 +16,12 @@ from astropy.table import Table
 class BasePhotReader(object):
     """Base class for reading Dolphot photometry output files.
 
-    The data attribute is a numpy record array with the data set.
-
     Parameters
     ----------
+    filepath : str
+        Path to the DOPHOT '.phot' file.
+    n_images : int
+        Number of imagse in the dataset.
     ref_image_path : str
         (Optional) path to the reference FITS image. Used to define the
         WCS system to compute sky coordinates of stars. Overriden by
@@ -113,7 +115,7 @@ class BasePhotReader(object):
     def _extract_global_cols(self, data, offset, nStars):
         """Extract output for global image columns."""
         dt = [('ext', np.int),
-              ('chip', np.int),  # TODO rename this to `z`
+              ('z', np.int),  # 1 for simple 2D images
               ('x', np.float),
               ('y', np.float),
               ('ra', np.float),
@@ -189,7 +191,7 @@ class FakeReader(BasePhotReader):
     def _extract_fake_global_cols(self, data, nStars):
         """Extract global columns at beginning of .fake files."""
         dt = [('fake_ext', np.int),
-              ('fake_chip', np.int),  # TODO rename to fake_z
+              ('fake_z', np.int),  # 1 for 2D images
               ('fake_x', np.float),
               ('fake_y', np.float),
               ('fake_ra', np.float),
