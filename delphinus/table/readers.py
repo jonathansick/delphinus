@@ -9,28 +9,57 @@ import numpy as np
 import numpy.lib.recfunctions as recf
 
 from astropy.wcs import WCS
-from astropy.io.fits import getheader
-# from astropy.io import ascii
+import astropy.io.fits
 from astropy.table import Table
 
 
 class BasePhotReader(object):
     """Base class for reading Dolphot photometry output files.
-    
+
     The data attribute is a numpy record array with the data set.
+
+    Parameters
+    ----------
+    ref_image_path : str
+        (Optional) path to the reference FITS image. Used to define the
+        WCS system to compute sky coordinates of stars. Overriden by
+        ``ref_wcs_list``.
+    ref_wcs_list : list
+        (Optional) ``list`` of :class:`astropy.wcs.WCS` instances for each
+        image extension. Numbers are zero-based and must correspond to order
+        of extensions in the `.phot` file.
+
+    Attributes
+    ----------
+    filepath : str
+        Path to the DOPHOT '.phot' file.
+    n_images : int
+        Number of imagse in the dataset.
+    data : :class:`numpy.ndarray`
+        Record array baed on DOLPHOT '.phot' file.
     """
     N_IMAGE_COLS = 17
     N_GLOBAL_COLS = 11
     GLOBAL_COL_OFFSET = 0
 
-    def __init__(self, filepath, n_images, ref_image_path=None):
+    def __init__(self, filepath, n_images,
+                 ref_image_path=None,
+                 ref_wcs_list=None):
         super(BasePhotReader, self).__init__()
         self.filepath = filepath
         self.n_images = n_images
-        self.ref_image_path = ref_image_path
         self._idata = None
         self._gdata = None
         self.data = None
+
+        self.ref_image_path = ref_image_path
+        if ref_wcs_list is not None:
+            self.ref_wcs_list = ref_wcs_list
+        elif ref_image_path is not None:
+            self.ref_wcs_list = self._build_ref_wcs(ref_image_path)
+        else:
+            self.ref_wcs_list = None
+
         self._read()
 
     def extract_additional_columns(self, data, n_images, nStars):
@@ -38,15 +67,27 @@ class BasePhotReader(object):
         output file.
         """
         pass
-    
+
+    def _build_ref_wcs(self, ref_path):
+        """Make a list of :class:`astropy.wcs.WCS` instances for each extension
+        of the reference image.
+        """
+        wcs_list = []
+        with astropy.io.fits.open(ref_path) as f:
+            for ext in f:
+                wcs = WCS(ext.header)
+                wcs_list.append(wcs)
+        return wcs_list
+
     def _read(self):
         """Pipeline for reading DOLPHOT photometry output."""
         data = np.loadtxt(self.filepath)
         nstars = data.shape[0]
         self._extract_global_cols(data, self.GLOBAL_COL_OFFSET, nstars)
-        self._extract_image_phot_cols(data,
-                self.GLOBAL_COL_OFFSET + self.N_GLOBAL_COLS,
-                self.n_images, nstars)
+        self._extract_image_phot_cols(
+            data,
+            self.GLOBAL_COL_OFFSET + self.N_GLOBAL_COLS,
+            self.n_images, nstars)
         self.extract_additional_columns(data, self.n_images, nstars)  # hook
         self._fill_radec()
         self.combine_structured_array()
@@ -56,7 +97,8 @@ class BasePhotReader(object):
     def _extract_image_phot_cols(self, data, offset, n_images, nStars):
         """Extract output for image-specific photometry columns."""
         number = lambda name, i: name + "_{0}".format(str(i))
-        col_names = ('counts', 'sky', 'norm_count_rate', 'norm_count_rate_err',
+        col_names = (
+            'counts', 'sky', 'norm_count_rate', 'norm_count_rate_err',
             'mag', 'mag_err', 'chi', 'sn', 'sharp', 'round', 'crowding',
             'fwhm', 'ecc', 'psf_a', 'psf_b', 'psf_c', 'quality')
         dt = []
@@ -71,18 +113,18 @@ class BasePhotReader(object):
     def _extract_global_cols(self, data, offset, nStars):
         """Extract output for global image columns."""
         dt = [('ext', np.int),
-                ('chip', np.int),
-                ('x', np.float),
-                ('y', np.float),
-                ('ra', np.float),
-                ('dec', np.float),
-                ('ref_chi', np.float),
-                ('ref_sn', np.float),
-                ('ref_sharp', np.float),
-                ('ref_round', np.float),
-                ('major_ax', np.int),
-                ('ref_crowding', np.float),
-                ('type', np.int)]
+              ('chip', np.int),  # TODO rename this to `z`
+              ('x', np.float),
+              ('y', np.float),
+              ('ra', np.float),
+              ('dec', np.float),
+              ('ref_chi', np.float),
+              ('ref_sn', np.float),
+              ('ref_sharp', np.float),
+              ('ref_round', np.float),
+              ('major_ax', np.int),
+              ('ref_crowding', np.float),
+              ('type', np.int)]
         col_names = [d[0] for d in dt]
         self._gdata = np.empty(nStars, dtype=np.dtype(dt))
         for i, name in enumerate(col_names):
@@ -90,16 +132,19 @@ class BasePhotReader(object):
             self._gdata[name] = data[:, j]
 
     def _fill_radec(self, ra_col='ra', dec_col='dec', x_col='x', y_col='y',
-            table=None):
-        """Compute RA/Dec columns, if a reference image is specified."""
+                    table=None):
+        """Compute RA/Dec columns, if a reference WCS is specified."""
         if table is None:
             table = self._gdata
-        if self.ref_image_path is not None:
-            refHead = getheader(self.ref_image_path)
-            wcs = WCS(refHead)
-            ra, dec = wcs.all_pix2world(table[x_col], table[y_col], 1)
-            table[ra_col] = ra
-            table[dec_col] = dec
+        if self.ref_wcs_list is not None:
+            # Compute coordinates for each extension
+            for ext, wcs in enumerate(self.ref_wcs_list):
+                s = np.where(table['ext'] == ext)[0]
+                ra, dec = wcs.all_pix2world(table[x_col][s],
+                                            table[y_col][s],
+                                            1)
+                table[ra_col] = ra
+                table[dec_col] = dec
         else:
             table[ra_col][:] = np.nan
             table[dec_col][:] = np.nan
@@ -123,9 +168,10 @@ class FakeReader(BasePhotReader):
 
     def __init__(self, filepath, n_images, ref_image_path=None):
         self.GLOBAL_COL_OFFSET = self.N_FAKE_GLOBAL_COLS \
-                + n_images * self.N_FAKE_IMAGE_COLS
-        super(FakeReader, self).__init__(filepath, n_images,
-                ref_image_path=ref_image_path)
+            + n_images * self.N_FAKE_IMAGE_COLS
+        super(FakeReader, self).__init__(
+            filepath, n_images,
+            ref_image_path=ref_image_path)
 
     def __add__(self, other):
         """Return a concatenated FakeReader (concatenates data)."""
@@ -134,7 +180,7 @@ class FakeReader(BasePhotReader):
 
     def extract_additional_columns(self, data, n_images, nStars):
         """Reads additional columns for .fake output.
-        
+
         Called from the superclass BasePhotReader's _read() method.
         """
         self._extract_fake_global_cols(data, nStars)
@@ -143,11 +189,11 @@ class FakeReader(BasePhotReader):
     def _extract_fake_global_cols(self, data, nStars):
         """Extract global columns at beginning of .fake files."""
         dt = [('fake_ext', np.int),
-                ('fake_chip', np.int),
-                ('fake_x', np.float),
-                ('fake_y', np.float),
-                ('fake_ra', np.float),
-                ('fake_dec', np.float)]
+              ('fake_chip', np.int),  # TODO rename to fake_z
+              ('fake_x', np.float),
+              ('fake_y', np.float),
+              ('fake_ra', np.float),
+              ('fake_dec', np.float)]
         self._fgdata = np.empty(nStars, dtype=np.dtype(dt))
         for i in range(self.N_FAKE_GLOBAL_COLS):
             colname = dt[i][0]
@@ -171,8 +217,9 @@ class FakeReader(BasePhotReader):
 
     def _fake_fill_radec(self):
         """Compute RA/Dec columns, if a reference image is specified."""
-        self._fill_radec(ra_col='fake_ra', dec_col='fake_dec',
-                x_col='fake_x', y_col='fake_y', table=self._fgdata)
+        self._fill_radec(
+            ra_col='fake_ra', dec_col='fake_dec',
+            x_col='fake_x', y_col='fake_y', table=self._fgdata)
 
     def combine_structured_array(self):
         """docstring for combine_structured_array"""
@@ -209,7 +256,7 @@ class FakeReader(BasePhotReader):
         return fakeMag, dx
 
     def completeness(self, n, mag_err_lim=None, dx_lim=None,
-            frac=0.5, dmag=0.1, qcfunc=None):
+                     frac=0.5, dmag=0.1, qcfunc=None):
         """Returns magnitude vs completeness fraction for the given image.
 
         Parameters
@@ -233,8 +280,9 @@ class FakeReader(BasePhotReader):
             Callback function for applying quality cuts while assessing
             completeness.
         """
-        recovered = self.recovered_in_image(n, mag_err_lim=mag_err_lim,
-                dx_lim=dx_lim, qcfunc=qcfunc)
+        recovered = self.recovered_in_image(
+            n, mag_err_lim=mag_err_lim,
+            dx_lim=dx_lim, qcfunc=qcfunc)
         if self.n_images > 1:
             fakeMag = self.data['fake_mag'][:, n]
         else:
@@ -247,13 +295,12 @@ class FakeReader(BasePhotReader):
         return bins, comp[1:]
 
     def completeness_limits(self, mag_err_lim=None, dx_lim=None,
-            frac=0.5, dmag=0.1, qcfunc=None):
+                            frac=0.5, dmag=0.1, qcfunc=None):
         """Compute the completeness limit against each image.
         Returns a list of completeness limits corresponding to each image.
 
         Parameters
         ----------
-        
         mag_err_lim : float
             Maximum absolute difference in magnitudes, in any band, for the
             star to be considered recovered.
@@ -272,19 +319,22 @@ class FakeReader(BasePhotReader):
         """
         comps = []
         for n in xrange(self.n_images):
-            c = self.completeness_limit_for_image(n,
-                    mag_err_lim=mag_err_lim, dx_lim=dx_lim,
-                    frac=frac, dmag=dmag, qcfunc=qcfunc)
+            c = self.completeness_limit_for_image(
+                n,
+                mag_err_lim=mag_err_lim,
+                dx_lim=dx_lim,
+                frac=frac,
+                dmag=dmag,
+                qcfunc=qcfunc)
             comps.append(c)
         return comps
 
     def completeness_limit_for_image(self, n, mag_err_lim=None, dx_lim=None,
-            frac=0.5, dmag=0.1, qcfunc=None):
+                                     frac=0.5, dmag=0.1, qcfunc=None):
         """Compute the completeness limit against each a single image.
-        
+
         Parameters
         ----------
-
         n : int
             Index of image to compute completeness limit for.
         mag_err_lim : float
@@ -304,12 +354,14 @@ class FakeReader(BasePhotReader):
             completeness.
         """
         bins, comp = self.completeness(n,
-                mag_err_lim=mag_err_lim, dx_lim=dx_lim, dmag=dmag,
-                qcfunc=qcfunc)
+                                       mag_err_lim=mag_err_lim,
+                                       dx_lim=dx_lim,
+                                       dmag=dmag,
+                                       qcfunc=qcfunc)
         # Solve where completeness crosses the threshold
         # TODO this could be made a lot smarter (i.e., ensure completeess
         # is declining; interpolate between bins; smooth)
-        msk = np.where(np.isfinite(comp) == True)[0]
+        msk = np.where(np.isfinite(comp) == True)[0]  # NOQA
         i = np.argmin((comp[msk] - frac) ** 2.)
         return bins[i]
 
@@ -317,9 +369,9 @@ class FakeReader(BasePhotReader):
         """Generates a boolean array indicating if each star is recovered or
         not. This effectively is a boolean AND of results from
         :meth:`recovered_in_image`.
-        
+
         A star is recovered if:
-            
+
         1. Recovered magnitude error in any band is less than `mag_err_limit`.
         2. Recovered position is within `dx_lim` pixels of the artificial star.
 
@@ -340,31 +392,34 @@ class FakeReader(BasePhotReader):
         """
         if self.n_images > 1:
             recoveryArrays = [self.recovered_in_image(0,
-                    mag_err_lim=mag_err_lim, dx_lim=dx_lim, qcfunc=qcfunc)
-                    for i in xrange(self.n_images)]
+                                                      mag_err_lim=mag_err_lim,
+                                                      dx_lim=dx_lim,
+                                                      qcfunc=qcfunc)
+                              for i in xrange(self.n_images)]
             rec = recoveryArrays[0]
             for r in recoveryArrays[1:]:
                 rec = rec & r
             return rec
         else:
             return self.recovered_in_image(0,
-                    mag_err_lim=mag_err_lim, dx_lim=dx_lim, qcfunc=qcfunc)
+                                           mag_err_lim=mag_err_lim,
+                                           dx_lim=dx_lim,
+                                           qcfunc=qcfunc)
 
     def recovered_in_image(self, n, mag_err_lim=None, dx_lim=None,
-            qcfunc=None):
+                           qcfunc=None):
         """Generates a boolean array indicating if each star is recovered in
         the given image (`n`) or not.
 
         A star is recovered if:
-            
+
         1. Recovered magnitude error in any band is less than `mag_err_limit`.
         2. Recovered position is within `dx_lim` pixels of the artificial star.
 
         and if DOLPHOT observes a star at all at the artificial star's site.
-        
+
         Parameters
         ----------
-
         n : int
             Index of image.
         mag_err_lim : float
@@ -397,12 +452,11 @@ class FakeReader(BasePhotReader):
         return recovered
 
     def export_for_starfish(self, output_path, round_lim=None, sharp_lim=None,
-            crowd_lim=None, qcfunc=None):
+                            crowd_lim=None, qcfunc=None):
         """Export artificial star test data for the StarFISH `synth` command.
 
         Parameters
         ----------
-
         output_path : str
             Path where crowding table will be written.
         qcfunc :
@@ -431,22 +485,26 @@ class FakeReader(BasePhotReader):
         for i in xrange(self.n_images):
             dtag = 'dmag_%i' % i
             if round_lim is not None:
-                s = np.where((self.data['round'][:, i] < min(round_lim[i]))
+                s = np.where(
+                    (self.data['round'][:, i] < min(round_lim[i]))
                     | (self.data['round'][:, i] > max(round_lim[i])))[0]
                 d[dtag][s] = 9.99
             if sharp_lim is not None:
-                s = np.where((self.data['sharp'][:, i] < min(sharp_lim[i]))
+                s = np.where(
+                    (self.data['sharp'][:, i] < min(sharp_lim[i]))
                     | (self.data['sharp'][:, i] > max(sharp_lim[i])))[0]
                 d[dtag][s] = 9.99
             if crowd_lim is not None:
-                s = np.where((self.data['crowding'][:, i] < min(crowd_lim[i]))
+                s = np.where(
+                    (self.data['crowding'][:, i] < min(crowd_lim[i]))
                     | (self.data['crowding'][:, i] > max(crowd_lim[i])))[0]
                 d[dtag][s] = 9.99
             if qcfunc is not None:
                 s = qcfunc(self.data, i)
                 d[dtag][s] = 9.99
         dirname = os.path.dirname(output_path)
-        if not os.path.exists(dirname): os.makedirs(dirname)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
         t = Table(d)
         t.write(output_path,
                 format='ascii.fixed_width_no_header',
@@ -457,7 +515,7 @@ class FakeReader(BasePhotReader):
 
     def metrics(self, magRange, n, magErrLim=None, dxLim=None):
         """Makes scalar metrics of artificial stars in an image.
-        
+
         For each image, results a tuple (RMS mag error, completeness fraction).
 
         TODO deprecated. Replace with other methods.
