@@ -83,7 +83,10 @@ class BasePhotReader(object):
 
     def _read(self):
         """Pipeline for reading DOLPHOT photometry output."""
+        print "Reading {0}".format(self.filepath)
         data = np.loadtxt(self.filepath)
+        if len(data.shape) == 1:
+            raise ReaderError("{0} is badly shaped".format(self.filepath))
         nstars = data.shape[0]
         self._extract_global_cols(data, self.GLOBAL_COL_OFFSET, nstars)
         self._extract_image_phot_cols(
@@ -131,6 +134,7 @@ class BasePhotReader(object):
         self._gdata = np.empty(nStars, dtype=np.dtype(dt))
         for i, name in enumerate(col_names):
             j = i + offset
+            print "global col {1} at {0:d}".format(j, name)
             self._gdata[name] = data[:, j]
 
     def _fill_radec(self, ra_col='ra', dec_col='dec', x_col='x', y_col='y',
@@ -548,3 +552,13 @@ class FakeReader(BasePhotReader):
         comp = float(np.sum(recovered[inds]) / float(len(inds)))
         rms = float(np.std(err[indsMeasured]))
         return rms, comp
+
+
+class ReaderError(Exception):
+    """Exceptions for Dolphot table readers"""
+    def __init__(self, value):
+        super(ReaderError, self).__init__(self)
+        self.value = value
+
+    def __str__(self):
+        return repr(self.value)
