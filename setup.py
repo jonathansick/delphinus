@@ -47,7 +47,8 @@ cmdclassd = register_commands(PACKAGENAME, VERSION, RELEASE)
 adjust_compiler(PACKAGENAME)
 
 # Freeze build information in version.py
-generate_version_py(PACKAGENAME, VERSION, RELEASE, get_debug_option())
+generate_version_py(PACKAGENAME, VERSION, RELEASE,
+                    get_debug_option('delphinus'))
 
 # Use the find_packages tool to locate all packages and modules
 packagenames = ['delphinus']
